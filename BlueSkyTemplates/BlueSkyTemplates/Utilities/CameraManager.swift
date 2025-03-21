@@ -110,4 +110,4 @@ extension CameraManager {
         manager.capturedImage = UIImage(systemName: "photo")
         return manager
     }
-} 
+}
