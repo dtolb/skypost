@@ -176,9 +176,13 @@ class BlueSkyService {
             return nil
         }
         
-        guard let imageData = image.jpegData(compressionQuality: 0.8) else {
+        // Get resized image data under 900KB
+        guard let imageData = resizeImageToMaxSize(image, maxSizeKB: 900) else {
             return nil
         }
+        
+        // Print the size for debugging
+        print("Image size for upload: \(Double(imageData.count) / 1024.0) KB")
         
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -208,6 +212,64 @@ class BlueSkyService {
             print("Network error during image upload: \(error)")
             throw BlueSkyError.networkError
         }
+    }
+    
+    // Function to resize image data to a maximum size in KB
+    private func resizeImageToMaxSize(_ image: UIImage, maxSizeKB: Int) -> Data? {
+        let maxSizeBytes = maxSizeKB * 1024
+        
+        // Try initial high quality compression
+        if let data = image.jpegData(compressionQuality: 0.9), data.count <= maxSizeBytes {
+            return data
+        }
+        
+        // Try several quality levels without resizing
+        var compressionQuality: CGFloat = 0.8
+        while compressionQuality >= 0.1 {
+            if let data = image.jpegData(compressionQuality: compressionQuality), data.count <= maxSizeBytes {
+                return data
+            }
+            compressionQuality -= 0.1
+        }
+        
+        // If compression alone isn't enough, start resizing
+        var currentImage = image
+        var scaleFactor: CGFloat = 0.9
+        
+        while scaleFactor > 0.1 {
+            let newWidth = currentImage.size.width * scaleFactor
+            let newHeight = currentImage.size.height * scaleFactor
+            
+            UIGraphicsBeginImageContextWithOptions(CGSize(width: newWidth, height: newHeight), false, 1.0)
+            currentImage.draw(in: CGRect(x: 0, y: 0, width: newWidth, height: newHeight))
+            let resizedImage = UIGraphicsGetImageFromCurrentImageContext()
+            UIGraphicsEndImageContext()
+            
+            guard let resized = resizedImage else {
+                break
+            }
+            
+            // Try with different compression qualities for each size
+            var tryQuality: CGFloat = 0.8
+            while tryQuality >= 0.1 {
+                if let data = resized.jpegData(compressionQuality: tryQuality), data.count <= maxSizeBytes {
+                    return data
+                }
+                tryQuality -= 0.1
+            }
+            
+            // Update for next iteration
+            currentImage = resized
+            scaleFactor -= 0.1
+        }
+        
+        // Last resort - try with the smallest size and lowest quality
+        if let smallestImage = currentImage.jpegData(compressionQuality: 0.1) {
+            return smallestImage
+        }
+        
+        // If everything fails, return nil
+        return nil
     }
     
     private func createPostWithBlobs(text: String, blobs: [[String: Any]]) async -> Result<String, BlueSkyError> {
@@ -287,6 +349,83 @@ class BlueSkyService {
             print("Network error during post creation: \(error)")
             return .failure(.networkError)
         }
+    }
+
+    private func resizeImageIfNeeded(_ image: UIImage, maxSizeKB: Int = 900) -> UIImage {
+        // First try with high quality JPEG compression
+        guard let initialData = image.jpegData(compressionQuality: 0.8) else {
+            return image // Return original if we can't get initial data
+        }
+        
+        // Check if the image is already small enough
+        if initialData.count <= maxSizeKB * 1024 {
+            return image
+        }
+        
+        // Start with reasonable compression quality
+        var compressionQuality: CGFloat = 0.7
+        let minCompressionQuality: CGFloat = 0.1
+        
+        // Try compressing with decreasing quality
+        while compressionQuality > minCompressionQuality {
+            guard let compressedData = image.jpegData(compressionQuality: compressionQuality) else {
+                break
+            }
+            
+            if compressedData.count <= maxSizeKB * 1024 {
+                // If we reach the target size with compression only, return a UIImage from the compressed data
+                if let compressedImage = UIImage(data: compressedData) {
+                    return compressedImage
+                }
+                break
+            }
+            
+            // Reduce quality and try again
+            compressionQuality -= 0.1
+        }
+        
+        // If compression alone didn't work, we'll resize the image
+        var targetImage = image
+        var scaleFactor: CGFloat = 0.9
+        
+        while scaleFactor > 0.1 {
+            // Calculate new dimensions
+            let newWidth = targetImage.size.width * scaleFactor
+            let newHeight = targetImage.size.height * scaleFactor
+            
+            // Create a new image context
+            UIGraphicsBeginImageContextWithOptions(CGSize(width: newWidth, height: newHeight), false, 1.0)
+            targetImage.draw(in: CGRect(x: 0, y: 0, width: newWidth, height: newHeight))
+            
+            if let resizedImage = UIGraphicsGetImageFromCurrentImageContext() {
+                UIGraphicsEndImageContext()
+                
+                // Check if this resized image meets our size requirement
+                if let resizedData = resizedImage.jpegData(compressionQuality: 0.7),
+                   resizedData.count <= maxSizeKB * 1024 {
+                    return resizedImage
+                }
+                
+                // Update target for next iteration
+                targetImage = resizedImage
+            } else {
+                UIGraphicsEndImageContext()
+                break
+            }
+            
+            // Reduce size further if needed
+            scaleFactor -= 0.1
+        }
+        
+        // If we can't get under the limit with reasonable methods, try one more time
+        // with both small size and low quality
+        if let finalData = targetImage.jpegData(compressionQuality: 0.5),
+           let finalImage = UIImage(data: finalData) {
+            return finalImage
+        }
+        
+        // Return our best effort if we can't meet the target
+        return targetImage
     }
     
     // Add this new function to parse hashtags
