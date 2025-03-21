@@ -1,4 +1,5 @@
 import SwiftUI
+import AVFoundation
 import UIKit
 
 struct CameraView: View {
@@ -60,20 +61,12 @@ struct CameraView: View {
                     .padding(.bottom, 30)
                 }
             } else {
-                // Camera options when no image is captured
+                // Simple camera options when no image is captured
                 VStack {
-                    Text("Camera Options")
+                    Text("Take Photo")
                         .font(.title)
                         .foregroundColor(.white)
                         .padding()
-                    
-                    // Square mode toggle
-                    Toggle("Square Format", isOn: $cameraManager.shouldShowSquareOverlay)
-                        .foregroundColor(.white)
-                        .padding()
-                        .background(Color.gray.opacity(0.3))
-                        .cornerRadius(8)
-                        .padding(.horizontal)
                     
                     Spacer()
                     
@@ -82,7 +75,7 @@ struct CameraView: View {
                     }) {
                         HStack {
                             Image(systemName: "camera.fill")
-                            Text("Take Photo")
+                            Text("Open Camera")
                         }
                         .font(.headline)
                         .foregroundColor(.white)
@@ -152,9 +145,88 @@ struct CameraView: View {
     }
 }
 
+// MARK: - Camera Manager
+
+class CameraManager: NSObject, ObservableObject {
+    @Published var capturedImage: UIImage?
+    
+    // Function to check camera permissions
+    func checkCameraPermission(completion: @escaping (Bool) -> Void) {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            completion(true)
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    completion(granted)
+                }
+            }
+        case .denied, .restricted:
+            completion(false)
+        @unknown default:
+            completion(false)
+        }
+    }
+    
+    // Reset captured image
+    func resetCapturedImage() {
+        capturedImage = nil
+    }
+    
+    // Process the captured image
+    func processImage(_ image: UIImage) {
+        capturedImage = image
+    }
+}
+
+// MARK: - Camera Picker View
+
+struct CameraPickerView: UIViewControllerRepresentable {
+    @ObservedObject var cameraManager: CameraManager
+    @Environment(\.presentationMode) var presentationMode
+    
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.delegate = context.coordinator
+        picker.sourceType = .camera
+        picker.cameraCaptureMode = .photo
+        
+        // Enable camera controls - this will show the native iOS camera interface
+        picker.showsCameraControls = true
+        picker.allowsEditing = false
+        
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+        let parent: CameraPickerView
+        
+        init(_ parent: CameraPickerView) {
+            self.parent = parent
+        }
+        
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+            if let image = info[.originalImage] as? UIImage {
+                parent.cameraManager.processImage(image)
+            }
+            
+            parent.presentationMode.wrappedValue.dismiss()
+        }
+        
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.presentationMode.wrappedValue.dismiss()
+        }
+    }
+}
+
 struct CameraView_Previews: PreviewProvider {
     static var previews: some View {
         CameraView(postViewModel: PostViewModel())
     }
-} 
-
+}

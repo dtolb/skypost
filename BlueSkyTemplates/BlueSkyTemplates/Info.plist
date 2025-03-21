@@ -4,7 +4,9 @@
 <dict>
 	<key>NSCameraUsageDescription</key>
 	<string>This app needs camera access to take photos for your Bluesky posts</string>
+	<key>NSCameraPortraitEffectEnabled</key>
+	<true/>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>This app needs access to your photo library to select images for your Bluesky posts</string>
 </dict>
-</plist> 
+</plist>

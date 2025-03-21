@@ -14,7 +14,6 @@
 		CCC0E2EB2D8CD21900DD8CF6 /* TemplatesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC0E2E52D8CD21900DD8CF6 /* TemplatesView.swift */; };
 		CCC0E2EC2D8CD21900DD8CF6 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC0E2E32D8CD21900DD8CF6 /* LoginView.swift */; };
 		CCC0E2ED2D8CD21900DD8CF6 /* TemplatesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC0E2DF2D8CD21900DD8CF6 /* TemplatesViewModel.swift */; };
-		CCC0E2EE2D8CD21900DD8CF6 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC0E2DB2D8CD21900DD8CF6 /* CameraManager.swift */; };
 		CCC0E2EF2D8CD21900DD8CF6 /* Template.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC0E2D32D8CD21900DD8CF6 /* Template.swift */; };
 		CCC0E2F02D8CD21900DD8CF6 /* Post.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC0E2D22D8CD21900DD8CF6 /* Post.swift */; };
 		CCC0E2F12D8CD21900DD8CF6 /* CameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC0E2E12D8CD21900DD8CF6 /* CameraView.swift */; };
@@ -22,7 +21,6 @@
 		CCC0E2F32D8CD21900DD8CF6 /* CreatePostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC0E2E22D8CD21900DD8CF6 /* CreatePostView.swift */; };
 		CCC0E2F42D8CD21900DD8CF6 /* BlueSkyAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC0E2D12D8CD21900DD8CF6 /* BlueSkyAuth.swift */; };
 		CCC0E2F52D8CD21900DD8CF6 /* BlueSkyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC0E2D72D8CD21900DD8CF6 /* BlueSkyService.swift */; };
-		CCC0E2F62D8CD21900DD8CF6 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CCC0E2D52D8CD21900DD8CF6 /* Preview Assets.xcassets */; };
 		E2A7F1B22B4FB5A200C8C7D7 /* BlueSkyTemplatesApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2A7F1B12B4FB5A200C8C7D7 /* BlueSkyTemplatesApp.swift */; };
 		E2A7F1B42B4FB5A200C8C7D7 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2A7F1B32B4FB5A200C8C7D7 /* ContentView.swift */; };
 		E2A7F1B62B4FB5A400C8C7D7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E2A7F1B52B4FB5A400C8C7D7 /* Assets.xcassets */; };
@@ -37,7 +35,6 @@
 		CCC0E2D72D8CD21900DD8CF6 /* BlueSkyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlueSkyService.swift; sourceTree = "<group>"; };
 		CCC0E2D82D8CD21900DD8CF6 /* PhotoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoService.swift; sourceTree = "<group>"; };
 		CCC0E2D92D8CD21900DD8CF6 /* TemplateService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateService.swift; sourceTree = "<group>"; };
-		CCC0E2DB2D8CD21900DD8CF6 /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
 		CCC0E2DD2D8CD21900DD8CF6 /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
 		CCC0E2DE2D8CD21900DD8CF6 /* PostViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostViewModel.swift; sourceTree = "<group>"; };
 		CCC0E2DF2D8CD21900DD8CF6 /* TemplatesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplatesViewModel.swift; sourceTree = "<group>"; };
@@ -53,7 +50,6 @@
 		CCCEC73F2D8CD07200DBDBC7 /* BlueSkyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlueSkyService.swift; sourceTree = "<group>"; };
 		CCCEC7402D8CD07200DBDBC7 /* PhotoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoService.swift; sourceTree = "<group>"; };
 		CCCEC7412D8CD07200DBDBC7 /* TemplateService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateService.swift; sourceTree = "<group>"; };
-		CCCEC7432D8CD07200DBDBC7 /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
 		CCCEC7452D8CD07200DBDBC7 /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
 		CCCEC7462D8CD07200DBDBC7 /* PostViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostViewModel.swift; sourceTree = "<group>"; };
 		CCCEC7472D8CD07200DBDBC7 /* TemplatesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplatesViewModel.swift; sourceTree = "<group>"; };
@@ -115,14 +111,6 @@
 			path = Services;
 			sourceTree = "<group>";
 		};
-		CCC0E2DC2D8CD21900DD8CF6 /* Utilities */ = {
-			isa = PBXGroup;
-			children = (
-				CCC0E2DB2D8CD21900DD8CF6 /* CameraManager.swift */,
-			);
-			path = Utilities;
-			sourceTree = "<group>";
-		};
 		CCC0E2E02D8CD21900DD8CF6 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
@@ -173,14 +161,6 @@
 			path = Services;
 			sourceTree = "<group>";
 		};
-		CCCEC7442D8CD07200DBDBC7 /* Utilities */ = {
-			isa = PBXGroup;
-			children = (
-				CCCEC7432D8CD07200DBDBC7 /* CameraManager.swift */,
-			);
-			path = Utilities;
-			sourceTree = "<group>";
-		};
 		CCCEC7482D8CD07200DBDBC7 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
@@ -209,7 +189,6 @@
 				CCCEC73C2D8CD07200DBDBC7 /* Models */,
 				CCCEC73E2D8CD07200DBDBC7 /* Preview Content */,
 				CCCEC7422D8CD07200DBDBC7 /* Services */,
-				CCCEC7442D8CD07200DBDBC7 /* Utilities */,
 				CCCEC7482D8CD07200DBDBC7 /* ViewModels */,
 				CCCEC74E2D8CD07200DBDBC7 /* Views */,
 				CCCEC74F2D8CD07200DBDBC7 /* Assets.xcassets */,
@@ -293,7 +272,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1520;
-				LastUpgradeCheck = 1520;
+				LastUpgradeCheck = 1620;
 				TargetAttributes = {
 					E2A7F1AD2B4FB5A200C8C7D7 = {
 						CreatedOnToolsVersion = 15.2;
@@ -324,7 +303,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				E2A7F1B92B4FB5A400C8C7D7 /* Preview Assets.xcassets in Resources */,
-				CCC0E2F62D8CD21900DD8CF6 /* Preview Assets.xcassets in Resources */,
 				E2A7F1B62B4FB5A400C8C7D7 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -344,7 +322,6 @@
 				CCC0E2EB2D8CD21900DD8CF6 /* TemplatesView.swift in Sources */,
 				CCC0E2EC2D8CD21900DD8CF6 /* LoginView.swift in Sources */,
 				CCC0E2ED2D8CD21900DD8CF6 /* TemplatesViewModel.swift in Sources */,
-				CCC0E2EE2D8CD21900DD8CF6 /* CameraManager.swift in Sources */,
 				CCC0E2EF2D8CD21900DD8CF6 /* Template.swift in Sources */,
 				CCC0E2F02D8CD21900DD8CF6 /* Post.swift in Sources */,
 				CCC0E2F12D8CD21900DD8CF6 /* CameraView.swift in Sources */,
