@@ -1,26 +1,18 @@
-# CI_TODO (handoff for next agent):
-#   1. The `xcode` tag runner exists on the tolbbox Mac (see ~/.claude/
-#      skills/gitlab-runners-tolbbox/SKILL.md) but full Xcode.app is NOT
-#      installed yet — only Command Line Tools. The `test` job below
-#      needs the iOS Simulator, which requires Xcode.app.
-#      Once Xcode.app is installed + `sudo xcode-select -s
-#      /Applications/Xcode.app` is run:
-#        - remove `when: manual` from the `test` job rule
-#        - remove `allow_failure: true`
-#   2. Verify the Xcode scheme name. This config assumes a shared scheme
-#      named "BlueSkyTemplates". Run `xcodebuild -list -project ...`
-#      and update SCHEME below if it differs.
-#   3. Install xcresultparser on the xcode runner once:
-#      `brew install a7ex/homebrew-formulae/xcresultparser`.
+# CI_TODO (next agent): no test target exists in this project yet. When
+# tests are added, switch `xcodebuild build` below to `xcodebuild test`
+# with `-resultBundlePath test-results/result.xcresult`, then add a step
+# `xcresultparser --output-format junit test-results/result.xcresult >
+# test-results/junit.xml` and wire `artifacts.reports.junit` so GitLab
+# surfaces the results.
 
 stages:
-  - test
+  - build
 
 variables:
-  XCODE_PROJECT_DIR: BlueSkyTemplates/BlueSkyTemplates
-  XCODE_PROJECT: BlueSkyTemplates.xcodeproj
   SCHEME: BlueSkyTemplates
-  DESTINATION: "platform=iOS Simulator,name=iPhone 15"
+  # iPhone 15 simulator was retired in Xcode 26. iPhone 17 ships as a
+  # default. The runner has Xcode 26.5 + a current Simulators package.
+  DESTINATION: "platform=iOS Simulator,name=iPhone 17"
 
 workflow:
   rules:
@@ -30,30 +22,18 @@ workflow:
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_TAG
 
-test:
-  stage: test
+build:
+  stage: build
   tags:
     - xcode
-  allow_failure: true
-  rules:
-    - when: manual
   script:
-    - cd "$XCODE_PROJECT_DIR"
-    - mkdir -p ../../test-results
+    # The Xcode project lives one level down — the repo root contains a
+    # single `BlueSkyTemplates/` subdirectory which holds the .xcodeproj
+    # and the source tree.
+    - cd BlueSkyTemplates
     - |
-      xcodebuild test \
-        -project "$XCODE_PROJECT" \
+      xcodebuild build \
+        -project BlueSkyTemplates.xcodeproj \
         -scheme "$SCHEME" \
         -destination "$DESTINATION" \
-        -resultBundlePath ../../test-results/result.xcresult \
-        -enableCodeCoverage NO
-    - cd ../..
-    - xcresultparser --output-format junit test-results/result.xcresult > test-results/junit.xml
-  artifacts:
-    when: always
-    expire_in: 1 week
-    paths:
-      - test-results/junit.xml
-      - test-results/result.xcresult
-    reports:
-      junit: test-results/junit.xml
+        -configuration Debug
