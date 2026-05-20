@@ -1,0 +1,59 @@
+# CI_TODO (handoff for next agent):
+#   1. A macOS GitLab runner is not yet installed on gitlab.tolbbox.com.
+#      The `test` job below uses `tags: [macos]`. Until a runner with that
+#      tag exists, the job stays `when: manual` + `allow_failure: true` so
+#      pipelines do not block. Once the macOS runner is registered:
+#        - remove the `when: manual` line from the `test` job rule
+#        - remove `allow_failure: true`
+#   2. Verify the Xcode scheme name. This config assumes a shared scheme
+#      named "BlueSkyTemplates". If `xcodebuild -list -project ...` shows
+#      a different scheme, update the SCHEME variable below.
+#   3. The JUnit conversion uses xcresultparser
+#      (https://github.com/a7ex/xcresultparser). It must be installed on
+#      the macOS runner (e.g. `brew install a7ex/homebrew-formulae/xcresultparser`).
+#      Alternatives: `trainer` (Ruby gem) or `xcparse`.
+
+stages:
+  - test
+
+variables:
+  XCODE_PROJECT_DIR: BlueSkyTemplates/BlueSkyTemplates
+  XCODE_PROJECT: BlueSkyTemplates.xcodeproj
+  SCHEME: BlueSkyTemplates
+  DESTINATION: "platform=iOS Simulator,name=iPhone 15"
+
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS && $CI_PIPELINE_SOURCE == "push"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_TAG
+
+test:
+  stage: test
+  tags:
+    - macos
+  allow_failure: true
+  rules:
+    - when: manual
+  script:
+    - cd "$XCODE_PROJECT_DIR"
+    - mkdir -p ../../test-results
+    - |
+      xcodebuild test \
+        -project "$XCODE_PROJECT" \
+        -scheme "$SCHEME" \
+        -destination "$DESTINATION" \
+        -resultBundlePath ../../test-results/result.xcresult \
+        -enableCodeCoverage NO
+    - cd ../..
+    - xcresultparser --output-format junit test-results/result.xcresult > test-results/junit.xml
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - test-results/junit.xml
+      - test-results/result.xcresult
+    reports:
+      junit: test-results/junit.xml
