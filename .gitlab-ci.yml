@@ -1,17 +1,17 @@
 # CI_TODO (handoff for next agent):
-#   1. A macOS GitLab runner is not yet installed on gitlab.tolbbox.com.
-#      The `test` job below uses `tags: [macos]`. Until a runner with that
-#      tag exists, the job stays `when: manual` + `allow_failure: true` so
-#      pipelines do not block. Once the macOS runner is registered:
-#        - remove the `when: manual` line from the `test` job rule
+#   1. The `xcode` tag runner exists on the tolbbox Mac (see ~/.claude/
+#      skills/gitlab-runners-tolbbox/SKILL.md) but full Xcode.app is NOT
+#      installed yet — only Command Line Tools. The `test` job below
+#      needs the iOS Simulator, which requires Xcode.app.
+#      Once Xcode.app is installed + `sudo xcode-select -s
+#      /Applications/Xcode.app` is run:
+#        - remove `when: manual` from the `test` job rule
 #        - remove `allow_failure: true`
 #   2. Verify the Xcode scheme name. This config assumes a shared scheme
-#      named "BlueSkyTemplates". If `xcodebuild -list -project ...` shows
-#      a different scheme, update the SCHEME variable below.
-#   3. The JUnit conversion uses xcresultparser
-#      (https://github.com/a7ex/xcresultparser). It must be installed on
-#      the macOS runner (e.g. `brew install a7ex/homebrew-formulae/xcresultparser`).
-#      Alternatives: `trainer` (Ruby gem) or `xcparse`.
+#      named "BlueSkyTemplates". Run `xcodebuild -list -project ...`
+#      and update SCHEME below if it differs.
+#   3. Install xcresultparser on the xcode runner once:
+#      `brew install a7ex/homebrew-formulae/xcresultparser`.
 
 stages:
   - test
@@ -33,7 +33,7 @@ workflow:
 test:
   stage: test
   tags:
-    - macos
+    - xcode
   allow_failure: true
   rules:
     - when: manual
