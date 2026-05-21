@@ -29,6 +29,10 @@ public actor APIClient {
     // MARK: - State
 
     private let keychain: AppleSecureKeychain
+    /// Mirror of the keychain UUID. Held alongside the actor so we can
+    /// probe the system Keychain directly without forcing ATProtoKit to
+    /// build a configuration just to discover an empty slot.
+    private let keychainUUID: UUID
     private var config: ATProtocolConfiguration?
     private var kit: ATProtoKit?
     private var bluesky: ATProtoBluesky?
@@ -42,6 +46,7 @@ public actor APIClient {
         if stored == nil {
             defaults.set(uuid.uuidString, forKey: Self.keychainUUIDDefaultsKey)
         }
+        self.keychainUUID = uuid
         self.keychain = AppleSecureKeychain(
             identifier: uuid,
             serviceName: Self.keychainServiceName
@@ -74,15 +79,60 @@ public actor APIClient {
 
     /// Restores a previous session by refreshing the stored refresh token.
     ///
-    /// Returns `nil` if there is no usable session in the Keychain (first
-    /// launch, after sign-out, or after the 2-week refresh window).
+    /// - Returns `nil` if there is no usable session in the Keychain (first
+    ///   launch, after sign-out, or after the 2-week refresh window). The
+    ///   caller treats this as "cleanly signed out".
+    /// - Throws `APIError.restoreFailed(reason:)` if a refresh token *does*
+    ///   exist in the Keychain but the refresh call itself failed for a
+    ///   transient reason (network down at cold launch, PDS 5xx). The
+    ///   caller surfaces this as a retryable error rather than silently
+    ///   logging the user out.
     public func restore() async throws -> SessionInfo? {
+        // Probe the Keychain first so we can tell "no session" from
+        // "session exists but refresh failed". The native SecItem wrapper
+        // is faster than building an ATProtoKit config just to discover an
+        // empty keychain, and it gives us a clean nil signal without
+        // depending on the SDK's internal error mapping. The account key
+        // shape mirrors AppleSecureKeychain's internal `refreshTokenKey`.
+        let probeAccount = "\(keychainUUID.uuidString).refreshToken"
+        let hasStoredRefreshToken: Bool
+        do {
+            hasStoredRefreshToken = try Keychain.data(
+                account: probeAccount,
+                service: Self.keychainServiceName
+            ) != nil
+        } catch {
+            // A genuine Keychain failure on the probe itself is transient
+            // (locked device, daemon hiccup) — treat it the same as a
+            // transient refresh failure below.
+            Log.auth.error("Keychain probe failed: \(error.localizedDescription, privacy: .public)")
+            throw APIError.restoreFailed(reason: .unknown)
+        }
+        guard hasStoredRefreshToken else {
+            // First launch / after sign-out / past refresh window — clean
+            // signed-out, no UI noise.
+            return nil
+        }
+
         let cfg = ATProtocolConfiguration(keychainProtocol: keychain)
         do {
             try await cfg.refreshSession()
+        } catch let error as ApplSecureKeychainError {
+            switch error {
+            case .itemNotFound:
+                // Raced with sign-out, or the cached keychain UUID points
+                // at an empty slot. Treat as cleanly signed out.
+                return nil
+            case .accessTokenNotFound, .invalidData, .unhandledStatus:
+                Log.auth.error("Restore failed (keychain): \(error.localizedDescription, privacy: .public)")
+                throw APIError.restoreFailed(reason: .unknown)
+            }
         } catch {
-            Log.auth.notice("Restore failed (no valid refresh token): \(error.localizedDescription, privacy: .public)")
-            return nil
+            // Token was present, refresh threw. Surface as transient so
+            // AuthService lands in `.error` with a retry affordance.
+            let reason = mapAuthFailure(error)
+            Log.auth.error("Restore failed: reason=\(String(describing: reason), privacy: .public) raw=\(error.localizedDescription, privacy: .private(mask: .hash))")
+            throw APIError.restoreFailed(reason: reason)
         }
         return try await finishSignIn(with: cfg)
     }

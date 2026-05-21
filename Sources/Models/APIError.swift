@@ -17,6 +17,11 @@ public enum APIError: Error, Sendable, Equatable {
     /// localized copy without ever seeing the raw SDK error string.
     case authenticationFailed(reason: AuthFailureReason)
 
+    /// Session restore failed transiently — a refresh token is in the Keychain
+    /// but the network/PDS call to refresh it failed. Distinct from
+    /// `.notAuthenticated`: the user should be offered retry, not a fresh login.
+    case restoreFailed(reason: AuthFailureReason)
+
     /// `createPostRecord` failed at the PDS or in the lexicon layer.
     case postFailed(reason: String)
 
@@ -49,6 +54,8 @@ extension APIError: LocalizedError {
             return "You're not signed in."
         case .authenticationFailed(let reason):
             return "Sign-in failed: \(reason.userFacingDescription)"
+        case .restoreFailed(let reason):
+            return "Couldn't restore your session: \(reason.userFacingDescription)"
         case .postFailed(let reason):
             return "Couldn't post: \(reason)"
         case .underlying(let reason):

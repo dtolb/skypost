@@ -163,6 +163,24 @@ struct AuthServiceStateTests {
 
     @Test
     @MainActor
+    func restoreTransientFailureLandsError() async {
+        // A token *is* in the Keychain but the refresh call failed
+        // transiently (e.g. flaky network at cold launch). Must land in
+        // .error so the user can retry, NOT silently in .signedOut.
+        let svc = AuthService(provider: MockAuthProvider(
+            sessionOutcome: .success(sampleSession),
+            restoreOutcome: .failure(APIError.restoreFailed(reason: .network))
+        ))
+        await svc.restore()
+        guard case .error(let error) = svc.state else {
+            Issue.record("Expected .error after transient restore failure, got \(svc.state)")
+            return
+        }
+        #expect((error as? APIError) == .restoreFailed(reason: .network))
+    }
+
+    @Test
+    @MainActor
     func restoreSuccessTransitionsToSignedIn() async {
         let svc = AuthService(provider: MockAuthProvider(
             sessionOutcome: .failure(APIError.notAuthenticated),

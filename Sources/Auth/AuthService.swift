@@ -58,13 +58,13 @@ public final class AuthService {
     /// Attempt to restore a session from the Keychain. Call from
     /// `RootView`'s `.task`.
     ///
-    /// Two outcomes after this commit:
+    /// Three outcomes:
     /// 1. Provider returns a `SessionInfo` → `.signedIn`.
     /// 2. Provider returns `nil` (no stored session — cold launch, after
     ///    sign-out, past refresh window) → `.signedOut`, no UI noise.
-    ///
-    /// Throws from the provider are still swallowed to `.signedOut` here;
-    /// distinguishing transient failures lands in the next commit (#6).
+    /// 3. Provider throws (token exists but refresh failed transiently —
+    ///    network, server 5xx) → `.error`, so the user can retry instead
+    ///    of being silently logged out.
     public func restore() async {
         state = .restoring
         do {
@@ -74,8 +74,8 @@ public final class AuthService {
                 state = .signedOut
             }
         } catch {
-            Log.auth.debug("Restore: no session (\(error.localizedDescription, privacy: .public))")
-            state = .signedOut
+            Log.auth.error("Restore failed: \(error.localizedDescription, privacy: .public)")
+            state = .error(error)
         }
     }
 
