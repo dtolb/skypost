@@ -24,8 +24,20 @@ public final class AuthService {
         case restoring
         /// Live session.
         case signedIn(SessionInfo)
-        /// Surface to the user; retry returns to `.signedOut`.
-        case error(Error)
+        /// Surface to the user; retry returns to `.signedOut`. The `source`
+        /// tells the UI whether to keep the user inside the login form
+        /// (so typed inputs survive) or show a full-screen restore error.
+        case error(Error, source: ErrorSource)
+    }
+
+    /// Where in the auth lifecycle an error originated. Drives whether the
+    /// UI shows the error inline inside `LoginView` (so the user's typed
+    /// handle/password survive) or escalates to a full-screen restore error.
+    public enum ErrorSource: Sendable {
+        /// Failure during interactive sign-in. Stay on `LoginView`; inline row.
+        case signIn
+        /// Failure while restoring a session at cold launch. Full-screen.
+        case restore
     }
 
     public private(set) var state: State = .signedOut
@@ -51,7 +63,7 @@ public final class AuthService {
             state = .signedIn(session)
         } catch {
             Log.auth.error("Sign-in failed: \(error.localizedDescription, privacy: .public)")
-            state = .error(error)
+            state = .error(error, source: .signIn)
         }
     }
 
@@ -75,7 +87,7 @@ public final class AuthService {
             }
         } catch {
             Log.auth.error("Restore failed: \(error.localizedDescription, privacy: .public)")
-            state = .error(error)
+            state = .error(error, source: .restore)
         }
     }
 

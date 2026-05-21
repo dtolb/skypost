@@ -13,11 +13,17 @@ public struct RootView: View {
             switch auth.state {
             case .restoring:
                 RestoringView()
-            case .signedOut, .signingIn:
+            case .signedOut, .signingIn, .error(_, source: .signIn):
+                // Sign-in failures stay inside the login form so the user's
+                // typed handle/password survive; LoginView renders the
+                // inline error row from `auth.state`.
                 LoginView()
             case .signedIn(let session):
                 HomeView(session: session)
-            case .error(let error):
+            case .error(let error, source: .restore):
+                // Cold-launch / session-restore failures escalate to a
+                // full-screen retry surface — there's no user input to
+                // preserve at this point in the lifecycle.
                 ErrorView(error: error) {
                     auth.dismissError()
                 }

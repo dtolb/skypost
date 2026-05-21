@@ -95,7 +95,9 @@ public struct LoginView: View {
     }
 
     private var errorMessage: String? {
-        guard case .error(let error) = auth.state else { return nil }
+        // Only show inline errors for sign-in failures — restore failures
+        // route to a full-screen ErrorView from RootView and never reach here.
+        guard case .error(let error, source: .signIn) = auth.state else { return nil }
         return error.localizedDescription
     }
 
@@ -106,6 +108,9 @@ public struct LoginView: View {
         focus = nil
         let trimmedHandle = handle.trimmingCharacters(in: .whitespacesAndNewlines)
         let secret = appPassword
+        // Clear any prior sign-in error so the state transitions cleanly:
+        // .error(_, .signIn) → .signedOut → .signingIn → .signedIn / .error
+        auth.dismissError()
         Task { await auth.signIn(handle: trimmedHandle, appPassword: secret) }
     }
 }

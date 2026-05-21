@@ -124,8 +124,8 @@ struct AuthServiceStateTests {
         let svc = AuthService(provider: provider)
         await svc.signIn(handle: "dan.bsky.social", appPassword: "wrong")
 
-        guard case .error(let error) = svc.state else {
-            Issue.record("Expected .error, got \(svc.state)")
+        guard case .error(let error, source: .signIn) = svc.state else {
+            Issue.record("Expected .error(_, .signIn), got \(svc.state)")
             return
         }
         #expect((error as? APIError) == .authenticationFailed(reason: .badCredentials))
@@ -172,8 +172,8 @@ struct AuthServiceStateTests {
             restoreOutcome: .failure(APIError.restoreFailed(reason: .network))
         ))
         await svc.restore()
-        guard case .error(let error) = svc.state else {
-            Issue.record("Expected .error after transient restore failure, got \(svc.state)")
+        guard case .error(let error, source: .restore) = svc.state else {
+            Issue.record("Expected .error(_, .restore) after transient restore failure, got \(svc.state)")
             return
         }
         #expect((error as? APIError) == .restoreFailed(reason: .network))
