@@ -99,7 +99,61 @@ struct ImageProcessorTests {
     }
 }
 
+@Suite("ComposeAttachment + send eligibility")
+struct ComposeAttachmentTests {
+
+    @Test
+    func canAttachAtZeroReturnsTrue() {
+        #expect(ComposeText.canAttach(currentCount: 0) == true)
+    }
+
+    @Test
+    func canAttachAtThreeReturnsTrue() {
+        #expect(ComposeText.canAttach(currentCount: 3) == true)
+    }
+
+    @Test
+    func canAttachAtFourReturnsFalse() {
+        #expect(ComposeText.canAttach(currentCount: 4) == false)
+    }
+
+    @Test
+    func submittableWithTextAndNoAttachments() {
+        #expect(ComposeText.isSubmittable(text: "hello", attachments: []) == true)
+    }
+
+    @Test
+    func submittableRequiresAltOnEveryAttachment() throws {
+        let blank = try makeTinyAttachment(altText: "")
+        #expect(ComposeText.isSubmittable(text: "hi", attachments: [blank]) == false)
+
+        let described = try makeTinyAttachment(altText: "describing the photo")
+        #expect(ComposeText.isSubmittable(text: "hi", attachments: [described]) == true)
+    }
+
+    @Test
+    func submittableRejectsOverAttachmentLimit() throws {
+        let attachments = try (0..<5).map { _ in try makeTinyAttachment(altText: "alt") }
+        #expect(ComposeText.isSubmittable(text: "hi", attachments: attachments) == false)
+    }
+}
+
 // MARK: - Fixtures
+
+/// Builds a real `ComposeAttachment` backed by a 1×1 JPEG routed through
+/// `ImageProcessor.encodeJPEG` — no mocks, exercises the same encode path
+/// the production composer uses.
+private func makeTinyAttachment(altText: String = "") throws -> ComposeAttachment {
+    let fixture = try makeFixtureJPEG(width: 1, height: 1)
+    let encoded = try ImageProcessor.encodeJPEG(sourceData: fixture, maxBytes: 100_000)
+    return ComposeAttachment(
+        jpegData: encoded.data,
+        pixelWidth: encoded.pixelWidth,
+        pixelHeight: encoded.pixelHeight,
+        altText: altText
+    )
+}
+
 
 /// Synthetic JPEG filled with random RGB noise so JPEG compression
 /// actually does work; a flat color compresses to ~3 KB regardless of

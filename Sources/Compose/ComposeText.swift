@@ -24,4 +24,25 @@ public enum ComposeText {
     public static func remaining(_ text: String) -> Int {
         graphemeLimit - graphemeCount(text)
     }
+
+    /// Bluesky caps images per post at 4 (architecture §8.3).
+    public static let attachmentLimit: Int = 4
+
+    /// Whether another attachment can still be added.
+    public static func canAttach(currentCount: Int) -> Bool {
+        currentCount < attachmentLimit
+    }
+
+    /// Send-eligibility for text + attachments. Empty attachments list
+    /// keeps the text-only path working; non-empty requires every
+    /// attachment to carry non-blank alt text (accessibility gate,
+    /// architecture §2 correction to v1's hard-coded alt).
+    public static func isSubmittable(
+        text: String,
+        attachments: [ComposeAttachment]
+    ) -> Bool {
+        isSubmittable(text)
+            && attachments.count <= attachmentLimit
+            && attachments.allSatisfy { !$0.altText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
 }
