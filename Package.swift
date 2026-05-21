@@ -132,6 +132,10 @@ let package = Package(
             name: "DesignSystemTests",
             dependencies: ["DesignSystem"]
         ),
+        .testTarget(
+            name: "BlueSkyTemplatesAppTests",
+            dependencies: ["BlueSkyTemplatesApp"]
+        ),
     ],
     swiftLanguageModes: [.v6]
 )

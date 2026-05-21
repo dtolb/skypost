@@ -1,21 +1,26 @@
 // SignedInView — TabView shell shown once auth.state == .signedIn.
 //
-// Architecture §6.1 anticipates "one Router per tab". Three tabs:
-//   1. Templates — primary feature (CRUD over saved post templates).
-//   2. Compose   — text-only post composer (Phase B).
-//   3. Settings  — account display + Sign Out.
+// Architecture §6.1 anticipates "one Router per tab". Four tabs:
+//   1. Home      — Mantis welcome hero + quick actions + this-session log.
+//   2. Templates — primary feature (CRUD over saved post templates).
+//   3. Compose   — text-only post composer (Phase B).
+//   4. Settings  — account display + Sign Out.
 //
-// The Phase-A "Hello" sanity-check tab is gone; Phase B promoted Compose
-// into its slot and split Sign Out + account details out into Settings.
-// Each tab owns its own NavigationStack.
+// `selectedTab` defaults to `.compose` so cold launch lands on the composer
+// (Phase G1 win — preserved). Home is browsable from tab position 1 but is
+// NOT the default selection.
+//
+// `AppTab` is `public` (not exported, but visible within the
+// `BlueSkyTemplatesApp` module) so `HomeView` can accept a
+// `Binding<AppTab>` in its public init.
 
 import SwiftUI
 import Models
 import Templates
 import Compose
 
-private enum AppTab: Hashable {
-    case templates, compose, settings
+public enum AppTab: Hashable {
+    case home, templates, compose, settings
 }
 
 public struct SignedInView: View {
@@ -31,6 +36,13 @@ public struct SignedInView: View {
 
     public var body: some View {
         TabView(selection: $selectedTab) {
+            // HomeView owns its own NavigationStack — don't wrap here.
+            HomeView(session: session, selectedTab: $selectedTab)
+                .tabItem {
+                    Label("Home", systemImage: "house")
+                }
+                .tag(AppTab.home)
+
             NavigationStack {
                 TemplateListView()
             }

@@ -12,6 +12,7 @@ import SwiftUI
 import SwiftData
 import Auth
 import Bluesky
+import Compose
 import Templates
 
 public struct BlueSkyTemplatesApp: App {
@@ -23,6 +24,11 @@ public struct BlueSkyTemplatesApp: App {
     @State private var auth: AuthService
     @State private var router = AppRouter()
     @State private var templateApplier = TemplateApplier()
+    // In-memory log of posts sent during this process. Wiped on
+    // termination by design — persisting sent posts is largely redundant
+    // with the user's PDS feed. HomeView reads it via @Environment;
+    // ComposeView appends to it (H6) once H3 wires injection.
+    @State private var sessionLog = SentSessionLog()
     // `LiveExternalLinkResolver` is gated on `canImport(LinkPresentation)
     // && canImport(UIKit)`; UIKit is iOS-only, so the App library target's
     // macOS build (used for `swift test`) won't see the type. Gate the
@@ -44,6 +50,7 @@ public struct BlueSkyTemplatesApp: App {
                 .environment(auth)
                 .environment(router)
                 .environment(templateApplier)
+                .environment(sessionLog)
                 .environment(\.apiClient, api)
                 #if canImport(LinkPresentation) && canImport(UIKit)
                 .environment(\.externalLinkResolver, linkResolver)
