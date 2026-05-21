@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+		Keychain access group — declared up front per §9.4 so adding a
+		Share Extension or Widget later doesn't force a Keychain migration.
+		The $(AppIdentifierPrefix) prefix is the Team ID; Xcode resolves it
+		at build time.
+	-->
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)group.com.tolb.bskytemplates</string>
+	</array>
+</dict>
+</plist>
