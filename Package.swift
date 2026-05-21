@@ -69,6 +69,7 @@ let package = Package(
             dependencies: [
                 "Bluesky",
                 "AppLogging",
+                "DesignSystem",
                 "Models",
                 .product(name: "Pow", package: "Pow"),
             ]
