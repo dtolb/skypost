@@ -1,9 +1,10 @@
 # Kanban — BlueSkyTemplates v2 implementation
 
-**Current phase:** Phase B — Compose (text-only) — stacked on `feature/templates-crud`
-**Branch:** `feature/compose-text` (off `feature/templates-crud`)
-**Plan:** [`docs/plans/2026-05-21-phase-b-compose-text.md`](docs/plans/2026-05-21-phase-b-compose-text.md)
-**Prior phase plan (complete):** [`docs/plans/2026-05-21-phase-a-templates-crud.md`](docs/plans/2026-05-21-phase-a-templates-crud.md)
+**Current phase:** Phase C — Compose (images) — stacked on `feature/compose-text`
+**Branch:** `feature/compose-images` (off `feature/compose-text`)
+**Plan:** [`docs/plans/2026-05-21-phase-c-compose-images.md`](docs/plans/2026-05-21-phase-c-compose-images.md)
+**Prior phase plans (merged or pending merge):** [`docs/plans/2026-05-21-phase-a-templates-crud.md`](docs/plans/2026-05-21-phase-a-templates-crud.md), [`docs/plans/2026-05-21-phase-b-compose-text.md`](docs/plans/2026-05-21-phase-b-compose-text.md)
+**Open MR for A+B combined:** <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/2>
 
 Orchestrator is the main session; implementers are fresh `swift-coder`
 (Opus 4.7) subagents per task. Each task gets: implementer → spec-compliance
@@ -37,9 +38,17 @@ reviewer → code-quality reviewer → mark done.
 - `APIClient.postHelloWorld()` — provably unreferenced after Phase B3 deleted HelloTabView; safe to retire.
 - `ComposeView.swift` `copy(_:)` `#elseif os(macOS)` with no `#else` — silent no-op on watchOS/visionOS targets if they're ever added.
 
-## Phase C / D / E — sketch (unchanged from earlier draft)
+## Phase C — Compose (images)
 
-- **Phase C — Compose: images** (architecture §11 step 4 cont.) — PhotosPicker, per-image alt text, resize to ≤1 MB JPEG, aspect-ratio embed.
-- **Phase D — Polish + tests + minor cleanups** (architecture §11 steps 5–6) — Pow effects with reduce-motion gates, Nuke LazyImage for previews, all carry-forward nits above, remaining plan-file unchecked items, minor items 8/10/12/13/14/15/16/17 from `docs/plans/2026-05-20-review-fixes.md`.
+### TODO
+- **C2** — `ComposeAttachment` + `isSubmittable(text:attachments:)` + 6 tests
+- **C3** — `APIClient.createPost(text:images:)` + ComposeView PhotosPicker / thumbnail / alt-text wiring
+
+### In Progress
+- **C1** — `ImageProcessor` ImageIO-based resize + JPEG encode + 6 TDD tests
+
+## Phase D / E — sketch
+
+- **Phase D — Polish + tests + minor cleanups** (architecture §11 steps 5–6) — Pow effects with reduce-motion gates, Nuke LazyImage for previews, all carry-forward nits above, retire `postHelloWorld()`, remaining plan-file unchecked items, minor items 8/10/12/13/14/15/16/17 from `docs/plans/2026-05-20-review-fixes.md`.
 - **Phase E — OAuth migration** (deferred until §7.3 trigger fires).
 
