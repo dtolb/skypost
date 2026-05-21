@@ -105,8 +105,7 @@ public struct ComposeView: View {
                         templates: templates,
                         onSelect: handlePickerSelection(_:)
                     )
-                } header: {
-                    Text("Template")
+                    .disabled(isSending)
                 }
 
                 Section {
@@ -461,7 +460,7 @@ public struct ComposeView: View {
 
     // MARK: - Actions
 
-    // MARK: - Template picker
+    // MARK: Template picker
 
     private func handlePickerSelection(_ option: TemplatePickerOption) {
         switch option {
@@ -472,9 +471,10 @@ public struct ComposeView: View {
             templatePickerSelection = pid
             if let template = templates.first(where: { $0.persistentModelID == pid }) {
                 applier?.apply(template)
-                // applier.apply -> SignedInView's .onChange flips tab if needed,
-                // and ComposeView's own .onChange(of: applier?.pending?.tick) ingests
-                // the body/hashtags. Nothing else to do here.
+                // applier.apply → SignedInView's .onChange flips tab if needed
+                // (no-op when already on Compose) → ComposeView's own
+                // .onChange(of: applier?.pending?.tick) ingests body/hashtags.
+                // Nothing else to do here.
             }
         }
     }
@@ -489,7 +489,13 @@ public struct ComposeView: View {
         linkState = .idle
         dismissedURLs.removeAll()
         send = .idle
+        #if canImport(PhotosUI)
+        pickerSelection.removeAll()
+        attachmentError = nil
+        #endif
     }
+
+    // MARK: Send
 
     // Named `submit()` rather than `send()` because the @State property is
     // also `send` — Swift's same-namespace rule for stored property vs
