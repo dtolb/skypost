@@ -284,32 +284,48 @@ public actor APIClient {
         locale: Locale = .current
     ) async throws -> String {
         guard let kit else { throw APIError.notAuthenticated }
+        // Auth resolution lives *outside* the do/catch so a missing
+        // session or empty keychain surfaces as `.notAuthenticated`
+        // (caller routes to sign-in) rather than `.postFailed` (caller
+        // shows a retry banner). Mirrors the images overload, which
+        // throws `.notAuthenticated` before its do-block.
+        guard let session = try await kit.getUserSession() else {
+            throw APIError.notAuthenticated
+        }
+        // `UserSession.pdsURL` is the PDS endpoint as a `String?`
+        // (e.g. `"https://bsky.social"`). Both `uploadBlob` and
+        // `parseFacets` consume the same `String` shape, so we keep
+        // it un-wrapped to a `URL`. Fall back to the public PDS for
+        // accounts whose session somehow lacks one — matches the
+        // SDK's own behaviour.
+        let pdsURL = session.pdsURL ?? "https://bsky.social"
+        let accessToken: String
         do {
-            guard let session = try await kit.getUserSession() else {
-                throw APIError.notAuthenticated
-            }
-            // `UserSession.pdsURL` is the PDS endpoint as a `String?`
-            // (e.g. `"https://bsky.social"`). Both `uploadBlob` and
-            // `parseFacets` consume the same `String` shape, so we keep
-            // it un-wrapped to a `URL`. Fall back to the public PDS for
-            // accounts whose session somehow lacks one — matches the
-            // SDK's own behaviour.
-            let pdsURL = session.pdsURL ?? "https://bsky.social"
-            let accessToken = try await keychain.retrieveAccessToken()
+            accessToken = try await keychain.retrieveAccessToken()
+        } catch {
+            // Keychain item missing or unreadable mid-flow means the
+            // session we just got from `getUserSession` is unusable
+            // for write requests. Treat as cleanly signed-out so the
+            // UI routes back to sign-in rather than offering a retry
+            // that would fail the same way.
+            Log.network.error("createPost(external): access token retrieval failed: \(error.localizedDescription, privacy: .public)")
+            throw APIError.notAuthenticated
+        }
 
+        do {
             // Pre-upload thumbnail blob ourselves so we never call
             // `Data(contentsOf:)` on a thumbnail URL (§8.4 #6). The card
             // already carries the JPEG bytes from the resolver step.
-            let thumbBlob: ComAtprotoLexicon.Repository.UploadBlobOutput? = try await {
-                guard let jpeg = external.thumbnailJPEG else { return nil }
+            var thumbBlob: ComAtprotoLexicon.Repository.UploadBlobOutput? = nil
+            if let jpeg = external.thumbnailJPEG {
                 let result = try await kit.uploadBlob(
                     pdsURL: pdsURL,
                     accessToken: accessToken,
                     filename: "thumb_\(UUID().uuidString).jpg",
                     imageData: jpeg
                 )
-                return result.blob
-            }()
+                thumbBlob = result.blob
+            }
 
             // Build the external embed payload. `External.description`
             // is non-optional `String` per the lexicon, so any nil
