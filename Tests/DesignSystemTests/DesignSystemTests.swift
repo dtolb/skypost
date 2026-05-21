@@ -1,0 +1,71 @@
+import Testing
+import SwiftUI
+@testable import DesignSystem
+
+@Suite("BrandColor tokens")
+struct BrandColorTests {
+
+    @Test
+    func tintMatchesAntDesignBlue6() {
+        // Ant Design / Mantis primary-6 = #1677ff.
+        #expect(BrandColor._tintRGB.red == 22.0 / 255.0)
+        #expect(BrandColor._tintRGB.green == 119.0 / 255.0)
+        #expect(BrandColor._tintRGB.blue == 255.0 / 255.0)
+    }
+
+    @Test
+    func incomeGreenMatchesPolarGreen6() {
+        // Mantis polar-green-6 = #52c41a.
+        #expect(BrandColor._incomeGreenRGB.red == 82.0 / 255.0)
+        #expect(BrandColor._incomeGreenRGB.green == 196.0 / 255.0)
+        #expect(BrandColor._incomeGreenRGB.blue == 26.0 / 255.0)
+    }
+
+    @Test
+    func expenseRedMatchesDustRed6() {
+        // Mantis dust-red-6 = #f5222d.
+        #expect(BrandColor._expenseRedRGB.red == 245.0 / 255.0)
+        #expect(BrandColor._expenseRedRGB.green == 34.0 / 255.0)
+        #expect(BrandColor._expenseRedRGB.blue == 45.0 / 255.0)
+    }
+
+    @Test
+    func deterministicColorForStringIsStableWithinProcess() {
+        // `String.hashValue` is process-stable (re-seeded each launch);
+        // within a single process two calls with the same key must agree.
+        let a = BrandColor.deterministicColor(for: "Daily standup")
+        let b = BrandColor.deterministicColor(for: "Daily standup")
+        #expect(a == b)
+    }
+
+    @Test
+    func deterministicColorPaletteMembership() {
+        let inputs = [
+            "Daily standup", "Reading list", "Pic-of-the-day", "Bug report",
+            "Release note", "Coffee", "Quick thought", "Long form essay",
+            "Photo dump", "Link share", "Meeting prep", "Sprint retro",
+            "Roadmap update", "Standup notes", "Hot take", "Cold take",
+            "Weekly summary", "Demo prep", "Pairing notes", "Random",
+        ]
+        for input in inputs {
+            let color = BrandColor.deterministicColor(for: input)
+            #expect(
+                BrandColor.deterministicPalette.contains(color),
+                "deterministicColor(for: \"\(input)\") not in palette"
+            )
+        }
+    }
+}
+
+@Suite("WelcomeHero accessibility")
+struct WelcomeHeroAccessibilityTests {
+
+    @Test
+    func welcomeHeroAccessibilityLabelComposesTitleAndSubtitle() {
+        let label = WelcomeHero<EmptyView>.composeAccessibilityLabel(
+            title: "Posted!",
+            subtitle: "at://did:plc:foo/app.bsky.feed.post/abc"
+        )
+        #expect(label == "Posted!. at://did:plc:foo/app.bsky.feed.post/abc")
+    }
+}
