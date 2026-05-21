@@ -2,12 +2,13 @@
 //
 // APIClient is an actor, which doesn't conform to @Observable, so it can't
 // be used with `@Environment(APIClient.self)`. We expose it via a classic
-// EnvironmentKey instead. Only modules that already depend on Bluesky
-// (App, HelloTabView) reach for this key; AuthService is the right boundary
-// for everyone else.
+// EnvironmentKey instead. Defined here in `Bluesky` so every module that
+// already depends on Bluesky (App, Compose, …) sees the same key and
+// therefore the same env slot — extensions declared in different modules
+// would be backed by different `EnvironmentKey` types and the injected
+// value would never reach the consumer.
 
 import SwiftUI
-import Bluesky
 
 // Default is nil so the environment never silently spins up a real
 // Keychain-touching APIClient for previews, tests, or un-injected
