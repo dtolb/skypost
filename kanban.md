@@ -103,19 +103,24 @@ reviewer → code-quality reviewer → mark done.
 
 ## Phase F — External link card embed (in flight)
 
-### TODO
-- **F1** — `URLDetector` helper via `NSDataDetector` + 6 tests (TDD)
-- **F2** — `ExternalLinkCard` model + `ExternalLinkResolver` protocol + `MockExternalLinkResolver` + 6 tests (TDD)
-- **F3** — `LiveExternalLinkResolver` via `LPMetadataProvider`
-- **F4** — `APIClient.createPost(text:external:)` overload + images-precedence
-- **F5** — ComposeView wiring + card preview UI (debounced `.task(id: detectedURL)`)
+### In Progress
 - **F6** — App composition wiring + final review + Sim verification
 
-### In Progress
-- _none yet — about to dispatch F1._
-
 ### Done
-- _none yet._
+- ✅ **F1** — `URLDetector` helper via `NSDataDetector` + 6 tests (commit `0ed2949`; 71/71 tests passing)
+- ✅ **F2** — `ExternalLinkCard` + `ExternalLinkResolver` protocol + `MockExternalLinkResolver` + 6 tests (commits `5aa3bcc` + `9e8f2dd` review fixes; 77/77 tests passing)
+- ✅ **F3** — `LiveExternalLinkResolver` via `LPMetadataProvider` + `ImageProcessor` relocate prereq + helper tests (commits `288dd42` relocate + `c82fcbc` resolver + `cdc9ddd` review fixes; 77/77 macOS + 80/80 iOS gated, xcodebuild green)
+- ✅ **F4** — `APIClient.createPost(text:external:)` overload (Option A — manual record build via `uploadBlob` + `createRecord`) + images-precedence (commits `2463591` + `b9eb0ef` review fixes; 77/77 tests passing, xcodebuild green)
+- ✅ **F5** — ComposeView wiring + card preview UI (debounced `.task(id: detectedURL)`) + a11y + loading-escape (commits `8232fcf` + `e4d5749` review fixes; 77/77 tests passing, xcodebuild green)
+
+### Deferred nits (Phase F)
+- F1 — characterization test for `mailto:` / `tel:` schemes. The runtime fix landed in F5 (`ComposeView.detectedURL` filters to http/https only); kanban entry remains as a *unit-test* deferral.
+- F1 — test name `URLAdjacentToPunctuationReturnsTrimmedURL` uses leading-capital `URL`; siblings in the file are mixed but lower-camel preferred.
+- F4 — orphaned blob on `createRecord` failure: the Option A path uploads the thumbnail blob BEFORE calling `createRecord`. If `createRecord` throws, the blob is orphaned on the user's PDS. Bluesky GCs unreferenced blobs (interval undocumented); architecture spec doesn't require cleanup. Revisit if it ever shows up in user PDS storage quotas.
+- F4 — language fallback `["en"]` vs SDK's `compactMap.isEmpty ? nil : ...` form. Pathological only when `locale.language.languageCode` is nil; cosmetic.
+- F4 — thumbnail filename pattern `"thumb_<uuid>.jpg"` vs SDK's `"<random>_thumbnail.jpg"`. Bluesky ignores filename; cosmetic.
+- F5 — `if case .idle = linkState { } else { Section("Link") { ... } }` — empty-then-branch reads inverted vs convention; behavior correct.
+- F5 — `submit()` IIFE `let card: ExternalLinkCard? = { ... }()` reads dense; `if case .loaded(let c) = linkState { card = c } else { card = nil }` would be cleaner.
 
 ## Phase G — sketch (post-Phase-F)
 
