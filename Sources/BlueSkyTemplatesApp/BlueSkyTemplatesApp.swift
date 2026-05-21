@@ -23,6 +23,14 @@ public struct BlueSkyTemplatesApp: App {
     @State private var auth: AuthService
     @State private var router = AppRouter()
     @State private var templateApplier = TemplateApplier()
+    // `LiveExternalLinkResolver` is gated on `canImport(LinkPresentation)
+    // && canImport(UIKit)`; UIKit is iOS-only, so the App library target's
+    // macOS build (used for `swift test`) won't see the type. Gate the
+    // declaration + injection identically so the SPM library still builds
+    // on macOS.
+    #if canImport(LinkPresentation) && canImport(UIKit)
+    @State private var linkResolver: any ExternalLinkResolver = LiveExternalLinkResolver()
+    #endif
 
     public init() {
         let api = APIClient()
@@ -37,6 +45,9 @@ public struct BlueSkyTemplatesApp: App {
                 .environment(router)
                 .environment(templateApplier)
                 .environment(\.apiClient, api)
+                #if canImport(LinkPresentation) && canImport(UIKit)
+                .environment(\.externalLinkResolver, linkResolver)
+                #endif
         }
         .modelContainer(for: Template.self)
     }
