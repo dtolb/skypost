@@ -1,0 +1,41 @@
+# CI_TODO (next agent): no test target exists in this project yet at the
+# xcodebuild level. When tests are added (Swift Testing tests already exist
+# at the SPM level — they run via `swift test`), switch `xcodebuild build`
+# below to `xcodebuild test` with `-resultBundlePath test-results/result.xcresult`,
+# then add a step `xcresultparser --output-format junit
+# test-results/result.xcresult > test-results/junit.xml` and wire
+# `artifacts.reports.junit` so GitLab surfaces the results.
+
+stages:
+  - build
+
+variables:
+  SCHEME: BlueSkyTemplates
+  # iPhone 15 simulator was retired in Xcode 26. iPhone 17 ships as a
+  # default. The runner has Xcode 26.5 + a current Simulators package.
+  DESTINATION: "platform=iOS Simulator,name=iPhone 17"
+
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS && $CI_PIPELINE_SOURCE == "push"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "v2"
+    - if: $CI_COMMIT_TAG
+
+build:
+  stage: build
+  tags:
+    - xcode
+  script:
+    # The .xcodeproj is .gitignore'd — regenerate it from project.yml.
+    # The xcode runner has Homebrew; install xcodegen if it isn't already.
+    - command -v xcodegen >/dev/null 2>&1 || brew install xcodegen
+    - (cd App && xcodegen generate)
+    - |
+      xcodebuild build \
+        -project App/BlueSkyTemplates.xcodeproj \
+        -scheme "$SCHEME" \
+        -destination "$DESTINATION" \
+        -configuration Debug
