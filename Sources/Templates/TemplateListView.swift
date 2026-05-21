@@ -14,6 +14,7 @@ public struct TemplateListView: View {
     @Query(sort: \Template.updatedAt, order: .reverse) private var templates: [Template]
 
     @State private var newSheetPresented: Bool = false
+    @State private var navigationTarget: Template?
 
     public init() {}
 
@@ -29,27 +30,38 @@ public struct TemplateListView: View {
                 } else {
                     List {
                         ForEach(templates) { template in
-                            NavigationLink(value: template) {
+                            Button {
+                                applier?.apply(template)
+                            } label: {
                                 TemplateRow(template: template)
                             }
+                            .buttonStyle(.plain)
                             .contextMenu {
                                 Button {
-                                    applier?.apply(template)
+                                    navigationTarget = template
                                 } label: {
-                                    Label("Use this template", systemImage: "square.and.arrow.up")
+                                    Label("Edit", systemImage: "pencil")
+                                }
+                                Button(role: .destructive) {
+                                    delete(template)
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
                                 }
                             }
-                            // Leading edge — keeps clear of the trailing-edge destructive swipe from `.onDelete` below.
-                            .swipeActions(edge: .leading) {
-                                Button {
-                                    applier?.apply(template)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) {
+                                    delete(template)
                                 } label: {
-                                    Label("Use", systemImage: "square.and.arrow.up")
+                                    Label("Delete", systemImage: "trash")
+                                }
+                                Button {
+                                    navigationTarget = template
+                                } label: {
+                                    Label("Edit", systemImage: "pencil")
                                 }
                                 .tint(.accentColor)
                             }
                         }
-                        .onDelete { offsets in delete(at: offsets) }
                     }
                 }
             }
@@ -57,7 +69,7 @@ public struct TemplateListView: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
-            .navigationDestination(for: Template.self) { template in
+            .navigationDestination(item: $navigationTarget) { template in
                 TemplateEditorView(mode: .editing(template))
             }
             .toolbar {
@@ -75,12 +87,8 @@ public struct TemplateListView: View {
         }
     }
 
-    private func delete(at offsets: IndexSet) {
-        for index in offsets {
-            modelContext.delete(templates[index])
-        }
-        // SwiftData usually auto-saves, but save explicitly so the row
-        // vanishes immediately and the behavior is pinnable in a test.
+    private func delete(_ template: Template) {
+        modelContext.delete(template)
         try? modelContext.save()
     }
 }
