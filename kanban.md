@@ -1,20 +1,22 @@
 # Kanban — BlueSkyTemplates v2 implementation
 
-> **Handoff state — 2026-05-21:** Phases A → E all shipped end-to-end with full review chains. Phase E adds the missing Templates → Composer hand-off (the product link that makes the app actually USE its templates). 65/65 Swift Testing cases passing. **Simulator verification driven autonomously via cliclick + osascript (Accessibility granted)** — turned up a real bug (lazy-tab-init race on first apply) which was fixed in commit `ac60d6b` and re-verified. Full Use-Template flow now works on first apply after launch. MR !5 stacked on Phase D; bug fix already pushed.
+> **Handoff state — 2026-05-21:** Phases A → E shipped end-to-end. Phase F (external link card embed) in flight. 65/65 Swift Testing cases on Phase E tip; Phase F adds 12 more pure-logic tests across F1+F2. UI test backlog + XCUITest harness plan written and deferred per Dan's "features for a while" directive. Manual cliclick+osascript Sim driving stays available for orchestrator-driven verification.
 
-**Current branch:** `feature/phase-e-templates-to-compose` (tip `ac60d6b`)
+**Current branch:** `feature/phase-f-external-link-card` (off Phase E tip `aeabedd`)
 **Open MRs:**
 - A+B: <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/2>
 - C (stacked on A+B): <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/3>
 - D (stacked on C): <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/4>
 - E (stacked on D): <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/5>
+- F (stacked on E): _not yet opened — in development_
 
 **Per-phase plans:**
 - [Phase A — Templates CRUD](docs/plans/2026-05-21-phase-a-templates-crud.md)
 - [Phase B — Compose (text)](docs/plans/2026-05-21-phase-b-compose-text.md)
 - [Phase C — Compose (images)](docs/plans/2026-05-21-phase-c-compose-images.md)
 - [Phase D — Polish + Pow](docs/plans/2026-05-21-phase-d-polish.md)
-- [Phase E — Templates → Composer hand-off](docs/plans/2026-05-21-phase-e-templates-to-compose.md) (in flight)
+- [Phase E — Templates → Composer hand-off](docs/plans/2026-05-21-phase-e-templates-to-compose.md) (READY TO MERGE per final review)
+- [Phase F — External link card embed](docs/plans/2026-05-21-phase-f-external-link-card.md) (in flight)
 
 Orchestrator is the main session; implementers are fresh `swift-coder`
 (Opus 4.7) subagents per task. Each task gets: implementer → spec-compliance
@@ -99,9 +101,25 @@ reviewer → code-quality reviewer → mark done.
 - E3 nit — `TemplateEditorView` Use Template button uses the STORED `template.body/hashtags`, not the user's unsaved `bodyText/hashtagsRaw` `@State`. If user edits then taps Use Template, edits are ignored. Per-plan literal behavior; revisit with explicit UX call (auto-save? transient apply? gate behind `canSave`?).
 - E4 nit — `ComposeView.onChange(of: applier?.pending?.tick)` re-fires once after `applier?.consume()` (pending: n → nil); guard handles it cleanly but a future reader has to derive that. One-line `// consume() below re-triggers; guard short-circuits` would document it.
 
-## Phase F — sketch (post-Phase-E)
+## Phase F — External link card embed (in flight)
 
-- **Phase F — OAuth migration** (deferred until §7.3 trigger fires).
+### TODO
+- **F1** — `URLDetector` helper via `NSDataDetector` + 6 tests (TDD)
+- **F2** — `ExternalLinkCard` model + `ExternalLinkResolver` protocol + `MockExternalLinkResolver` + 6 tests (TDD)
+- **F3** — `LiveExternalLinkResolver` via `LPMetadataProvider`
+- **F4** — `APIClient.createPost(text:external:)` overload + images-precedence
+- **F5** — ComposeView wiring + card preview UI (debounced `.task(id: detectedURL)`)
+- **F6** — App composition wiring + final review + Sim verification
+
+### In Progress
+- _none yet — about to dispatch F1._
+
+### Done
+- _none yet._
+
+## Phase G — sketch (post-Phase-F)
+
+- **OAuth migration** (deferred until architecture §7.3 trigger fires).
 - **Deferred-cleanup track**: plan #8 (App struct rename), plan #10 (@MainActor consistency), plan #12 (Keychain duplicate), plan #13 (app icon), plan #15 (DesignSystem semantic colors), ComposeView cosmetic nits (lines 75-76 ternary, `copy(_:)` missing `#else`), E2/E3/E4 cosmetic nits (this file's "Deferred-cosmetic nits (Phase E)"). Nuke LazyImage when a feed/CDN-URL surface arrives.
 - **Feature track candidates**: reply / quote support, external link card embed, Save draft as template (round-trip of Phase E).
 - **UI test harness**: backlog at [`docs/ui-test-backlog.md`](docs/ui-test-backlog.md); plan at [`docs/plans/2026-05-21-ui-test-harness.md`](docs/plans/2026-05-21-ui-test-harness.md). Deferred per Dan's "features for a while" directive; pick up when backlog crosses ~10 P0/P1 items or after 2-3 more feature phases.
