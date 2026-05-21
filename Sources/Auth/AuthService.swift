@@ -56,17 +56,23 @@ public final class AuthService {
     }
 
     /// Attempt to restore a session from the Keychain. Call from
-    /// `RootView`'s `.task`. Silently returns to `.signedOut` if there's
-    /// nothing to restore — that's the cold-launch path.
+    /// `RootView`'s `.task`.
+    ///
+    /// Two outcomes after this commit:
+    /// 1. Provider returns a `SessionInfo` → `.signedIn`.
+    /// 2. Provider returns `nil` (no stored session — cold launch, after
+    ///    sign-out, past refresh window) → `.signedOut`, no UI noise.
+    ///
+    /// Throws from the provider are still swallowed to `.signedOut` here;
+    /// distinguishing transient failures lands in the next commit (#6).
     public func restore() async {
         state = .restoring
         do {
-            // The current SessionInfo isn't known yet at boot, so pass a
-            // sentinel; AppPasswordAuth ignores it (the real handle lives
-            // in the Keychain).
-            let placeholder = SessionInfo(did: "", handle: "")
-            let session = try await provider.refresh(placeholder)
-            state = .signedIn(session)
+            if let session = try await provider.restore() {
+                state = .signedIn(session)
+            } else {
+                state = .signedOut
+            }
         } catch {
             Log.auth.debug("Restore: no session (\(error.localizedDescription, privacy: .public))")
             state = .signedOut

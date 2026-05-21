@@ -10,19 +10,34 @@ import Models
 /// touching the network.
 private actor MockAuthProvider: AuthProvider {
 
-    enum Outcome: Sendable {
+    enum SessionOutcome: Sendable {
         case success(SessionInfo)
         case failure(any Error)
     }
 
-    private let sessionOutcome: Outcome
-    private let refreshOutcome: Outcome
+    /// Restore is tri-state: a real session, "nothing stored" (nil), or a
+    /// thrown transient error (network failure mid-restore).
+    enum RestoreOutcome: Sendable {
+        case success(SessionInfo)
+        case empty
+        case failure(any Error)
+    }
+
+    private let sessionOutcome: SessionOutcome
+    private let restoreOutcome: RestoreOutcome
+    private let refreshOutcome: SessionOutcome
     private(set) var sessionCalls: Int = 0
+    private(set) var restoreCalls: Int = 0
     private(set) var refreshCalls: Int = 0
     private(set) var revokeCalls: Int = 0
 
-    init(sessionOutcome: Outcome, refreshOutcome: Outcome = .failure(APIError.notAuthenticated)) {
+    init(
+        sessionOutcome: SessionOutcome,
+        restoreOutcome: RestoreOutcome = .empty,
+        refreshOutcome: SessionOutcome = .failure(APIError.notAuthenticated)
+    ) {
         self.sessionOutcome = sessionOutcome
+        self.restoreOutcome = restoreOutcome
         self.refreshOutcome = refreshOutcome
     }
 
@@ -30,6 +45,15 @@ private actor MockAuthProvider: AuthProvider {
         sessionCalls += 1
         switch sessionOutcome {
         case .success(let s): return s
+        case .failure(let e): throw e
+        }
+    }
+
+    func restore() async throws -> SessionInfo? {
+        restoreCalls += 1
+        switch restoreOutcome {
+        case .success(let s): return s
+        case .empty: return nil
         case .failure(let e): throw e
         }
     }
@@ -123,16 +147,16 @@ struct AuthServiceStateTests {
 
     @Test
     @MainActor
-    func restoreFailureLandsSignedOutNotError() async {
-        // A failed restore (e.g. no token in Keychain on first launch) is
-        // not user-visible — it's just the empty cold-launch path.
+    func restoreEmptyLandsSignedOut() async {
+        // No stored session in the Keychain — this is the cold-launch path
+        // and must not produce UI noise.
         let svc = AuthService(provider: MockAuthProvider(
             sessionOutcome: .success(sampleSession),
-            refreshOutcome: .failure(APIError.notAuthenticated)
+            restoreOutcome: .empty
         ))
         await svc.restore()
         guard case .signedOut = svc.state else {
-            Issue.record("Expected .signedOut after failed restore, got \(svc.state)")
+            Issue.record("Expected .signedOut after empty restore, got \(svc.state)")
             return
         }
     }
@@ -142,7 +166,7 @@ struct AuthServiceStateTests {
     func restoreSuccessTransitionsToSignedIn() async {
         let svc = AuthService(provider: MockAuthProvider(
             sessionOutcome: .failure(APIError.notAuthenticated),
-            refreshOutcome: .success(sampleSession)
+            restoreOutcome: .success(sampleSession)
         ))
         await svc.restore()
         guard case .signedIn(let session) = svc.state else {

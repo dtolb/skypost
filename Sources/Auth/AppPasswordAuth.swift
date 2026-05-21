@@ -25,11 +25,25 @@ public struct AppPasswordAuth: AuthProvider {
         return try await api.authenticate(handle: handle, appPassword: secret)
     }
 
+    public func restore() async throws -> SessionInfo? {
+        try await api.restore()
+    }
+
     public func refresh(_ session: SessionInfo) async throws -> SessionInfo {
-        guard let restored = try await api.restore() else {
+        // In-session token rollover. ATProtoKit's refresh path is the same
+        // call as cold-launch restore — the SDK reads the session out of
+        // its own keychain wrapper rather than from `session`. If the
+        // refresh succeeds we get a fresh `SessionInfo` back; if the
+        // refresh token has expired we fall back to throwing
+        // `.notAuthenticated` so the call site can decide to log out.
+        //
+        // Not wired to a call site yet (the post path is one shot today),
+        // but having the right shape now avoids another protocol break
+        // the moment we add a real 401 retry loop.
+        guard let refreshed = try await api.restore() else {
             throw APIError.notAuthenticated
         }
-        return restored
+        return refreshed
     }
 
     public func revoke(_ session: SessionInfo) async throws {
