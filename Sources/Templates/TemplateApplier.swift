@@ -5,9 +5,9 @@ import Observation
 /// (in production: ComposeView). One-shot — the consumer calls `consume()`
 /// after ingesting `pending` to clear the slot.
 ///
-/// `tick` is monotonic across `apply(_:)` calls so `.onChange(of: pending?.tick)`
-/// re-fires when the user applies the same template twice in a row. The counter
-/// is preserved across `consume()` calls so consume+reapply still advances tick.
+/// `tick` is monotonic across the applier's lifetime (NOT reset by `consume()`)
+/// so `.onChange(of: pending?.tick)` distinguishes successive applications of
+/// the same template.
 @MainActor
 @Observable
 public final class TemplateApplier {
@@ -17,6 +17,9 @@ public final class TemplateApplier {
         public let hashtags: [String]
         public let tick: Int
 
+        // Synthesized memberwise inits are `internal` even when the type and
+        // its stored properties are public — this explicit init is required
+        // for cross-module construction (e.g. tests).
         public init(body: String, hashtags: [String], tick: Int) {
             self.body = body
             self.hashtags = hashtags
@@ -26,6 +29,7 @@ public final class TemplateApplier {
 
     public private(set) var pending: Pending?
 
+    // WHY: internal bookkeeping; consumers should observe `pending.tick`, not this counter.
     @ObservationIgnored private var lastTick: Int = 0
 
     public init() {}

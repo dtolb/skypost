@@ -72,11 +72,14 @@ struct TemplateApplierTests {
 
     @Test
     func pendingEquatableHonorsAllFields() {
-        let p1 = TemplateApplier.Pending(body: "x", hashtags: ["a"], tick: 1)
-        let p2 = TemplateApplier.Pending(body: "x", hashtags: ["a"], tick: 2)
-        #expect(p1 != p2)
-
-        let p3 = TemplateApplier.Pending(body: "x", hashtags: ["a"], tick: 1)
-        #expect(p1 == p3)
+        let base = TemplateApplier.Pending(body: "x", hashtags: ["a"], tick: 1)
+        // Same fields → equal
+        #expect(base == TemplateApplier.Pending(body: "x", hashtags: ["a"], tick: 1))
+        // Different body → not equal
+        #expect(base != TemplateApplier.Pending(body: "y", hashtags: ["a"], tick: 1))
+        // Different hashtags → not equal
+        #expect(base != TemplateApplier.Pending(body: "x", hashtags: ["b"], tick: 1))
+        // Different tick → not equal
+        #expect(base != TemplateApplier.Pending(body: "x", hashtags: ["a"], tick: 2))
     }
 }
