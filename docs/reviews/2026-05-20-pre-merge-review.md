@@ -1,7 +1,7 @@
 # v2 pre-merge code review — 2026-05-20
 
 **Reviewed:** `1571d46..8e2b434` on branch `v2` (orphan)
-**Spec:** `git show main:NEXT_STEPS_MAY_20_2026.md`
+**Spec:** [`docs/architecture.md`](../architecture.md) (originally `NEXT_STEPS_MAY_20_2026.md` on the pre-merge `main`)
 **Verifications run:** `swift build` (clean, 0 warnings), `swift test` (15/15 pass), `xcodebuild build` against `iPhone 17` / iOS 26 simulator (succeeded, 1 unrelated AppIntents metadata note).
 
 ## TL;DR

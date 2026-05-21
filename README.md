@@ -73,15 +73,11 @@ other module talks to Bluesky through `APIClient` and the types in
 
 ## Architecture spec
 
-The source of truth for the v2 design lives on `main`. Read it with:
-
-```sh
-git show main:NEXT_STEPS_MAY_20_2026.md
-```
-
-It covers the target stack, module layout, isolation model, logging
-discipline, the ATProtoKit pinning rationale, and the auth strategy
-(app passwords now, OAuth later behind the same `AuthProvider`).
+The source of truth for the v2 design lives at
+[`docs/architecture.md`](docs/architecture.md). It covers the target
+stack, module layout, isolation model, logging discipline, the
+ATProtoKit pinning rationale, and the auth strategy (app passwords now,
+OAuth later behind the same `AuthProvider`).
 
 ## CI
 
