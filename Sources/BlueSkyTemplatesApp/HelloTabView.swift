@@ -1,8 +1,10 @@
-// HomeView — signed-in landing screen.
+// HelloTabView — hello-world sanity-check tab inside the signed-in TabView.
 //
 // One button. Posts the literal string "hello from v2" to the user's PDS
 // via APIClient (the only Bluesky-aware path), shows the resulting AT-URI,
-// or shows the error. Plus sign-out.
+// or shows the error. Plus sign-out (until a Settings tab exists).
+//
+// This tab survives only until Phase B replaces it with the Compose flow.
 //
 // No ViewModel. Local screen state is a small @State enum (per §6.1).
 
@@ -11,7 +13,7 @@ import Auth
 import Bluesky
 import Models
 
-public struct HomeView: View {
+public struct HelloTabView: View {
 
     public let session: SessionInfo
 
@@ -116,7 +118,7 @@ public struct HomeView: View {
 
     private func postHello() {
         guard let api else {
-            fatalError("HomeView requires an APIClient in the environment — inject via .environment(\\.apiClient, ...) at the App root")
+            fatalError("HelloTabView requires an APIClient in the environment — inject via .environment(\\.apiClient, ...) at the App root")
         }
         post = .posting
         Task {
