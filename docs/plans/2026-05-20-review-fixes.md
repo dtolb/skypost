@@ -48,17 +48,18 @@ Fixers run sequentially (parallel `swift build` would race the shared `.build/` 
 
 ## CI (Fixer C)
 
-- [ ] **CI #1. Verify the `.gitlab-ci.yml` job is tagged for the `xcode` runner**
+- [x] **CI #1. Verify the `.gitlab-ci.yml` job is tagged for the `xcode` runner**
   - **Where:** `.gitlab-ci.yml`.
   - **Reference:** `~/.claude/skills/gitlab-runners-tolbbox/` documents the runner tags (`macos` for Docker, `xcode` for shell). The Xcode-build/test job MUST be tagged `xcode`.
   - **Fix:** Read the gitlab-runners-tolbbox skill, confirm the job's `tags:` list resolves to the `xcode` shell runner (NOT `macos`), and fix if wrong.
 
-- [ ] **CI #2. Run `swift test` (or `xcodebuild test`) in CI and surface results as a JUnit report on the merge request**
+- [x] **CI #2. Run `swift test` (or `xcodebuild test`) in CI and surface results as a JUnit report on the merge request**
   - **Where:** `.gitlab-ci.yml`.
   - **Reference:** <https://docs.gitlab.com/18.11/ci/testing/unit_test_reports/>. GitLab parses JUnit-formatted XML uploaded via `artifacts.reports.junit:` and renders pass/fail per test on the MR widget.
   - **Fix:** Add a job (or extend the existing build job) that actually runs the tests on the `xcode` runner. Emit JUnit XML using whichever toolchain is cleanest — `xcbeautify --report junit` piped from `xcodebuild test`, or `xcresultparser` against the `.xcresult` bundle, or `swift test --xunit-output` if SwiftPM-only suffices. Configure `artifacts.reports.junit:` to point at the produced file. The pipeline should fail if any test fails — and the MR should show the green/red per-test breakdown.
 
-- [ ] **CI #3. Push `v2` to `origin` (gitlab.tolbbox.com) and confirm the pipeline succeeds on the right runner with the JUnit report visible**
+- [x] **CI #3. Push `v2` to `origin` (gitlab.tolbbox.com) and confirm the pipeline succeeds on the right runner with the JUnit report visible**
+  - Pipeline #143 (SHA `00c7cb29`) — status `success`, 59s, runner ID 3 (`xcode` shell), 24/24 tests, JUnit parsed by GitLab. URL: <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/pipelines/143>
   - **Where:** remote `origin` = `ssh://git@ssh.gitlab.tolbbox.com:7022/tolbnet/BlueSkyTemplates.git`.
   - **Fix:** `git push -u origin v2`. Use `glab` (the GitLab CLI per the `glab` skill) to watch the pipeline and confirm: (a) the job ran on the `xcode`-tagged runner, (b) `swift test` / `xcodebuild test` actually executed, (c) the JUnit report uploaded successfully. Report the pipeline URL and result.
 
