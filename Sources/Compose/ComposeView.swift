@@ -236,15 +236,18 @@ public struct ComposeView: View {
             // half-typed prose into the merge is worse UX than starting
             // fresh).
             //
-            // `initial: true` covers the lazy-tab-init case: when the user's
-            // first "Use this template" tap is the same event that
+            // `initial: true` covers the lazy-tab-init case: when an apply
+            // from the Templates tab (row tap) is the same event that
             // materializes ComposeView (TabView with `selection:` binding
             // lazy-instantiates the non-selected tab child), the inserted
             // view captures the already-changed tick as its baseline and a
             // vanilla `.onChange` never fires. `initial: true` runs the
             // closure on first attachment with the current value, so the
             // FIRST apply ingests correctly. The guard handles "no pending
-            // at appearance".
+            // at appearance". Less relevant post-G1 (Compose is the default
+            // tab), but still load-bearing for cold-launch-on-Templates-tab
+            // flows and for in-Compose picker selections that race
+            // ComposeView's first body evaluation.
             .onChange(of: applier?.pending?.tick, initial: true) { _, newTick in
                 guard let newTick,
                       let pending = applier?.pending,
