@@ -213,6 +213,45 @@ public actor APIClient {
         }
     }
 
+    /// Posts text with up to 4 image attachments. Each image must already
+    /// be JPEG-encoded and ≤1 MB (the SDK enforces both — see architecture
+    /// §8.3); `ImageProcessor.encodeJPEG` is the upstream that guarantees
+    /// it. Pixel dims are forwarded as the embed's `aspectRatio` so the
+    /// Bluesky client can lay the image out without a flash of wrong size.
+    ///
+    /// `images` is a `Sendable` value tuple so the Compose module can
+    /// pack a `ComposeAttachment` into this call without leaking the
+    /// Bluesky SDK's `ATProtoTools.ImageQuery` type across module
+    /// boundaries (per architecture §6.1).
+    public func createPost(
+        text: String,
+        images: [(jpegData: Data, altText: String, pixelWidth: Int, pixelHeight: Int)],
+        locale: Locale = .current
+    ) async throws -> String {
+        guard let bluesky else { throw APIError.notAuthenticated }
+        let queries = images.map { img in
+            ATProtoTools.ImageQuery(
+                imageData: img.jpegData,
+                fileName: "image_\(UUID().uuidString).jpg",
+                altText: img.altText,
+                aspectRatio: .init(width: img.pixelWidth, height: img.pixelHeight)
+            )
+        }
+        do {
+            let ref = try await bluesky.createPostRecord(
+                text: text,
+                locales: [locale],
+                embed: queries.isEmpty ? nil : .images(images: queries),
+                creationDate: Date()
+            )
+            Log.network.info("Posted record with \(images.count, privacy: .public) image(s) uri=\(ref.recordURI, privacy: .public)")
+            return ref.recordURI
+        } catch {
+            Log.network.error("createPostRecord(images) failed: \(error.localizedDescription, privacy: .public)")
+            throw APIError.postFailed(reason: error.localizedDescription)
+        }
+    }
+
     // MARK: - Helpers
 
     private func finishSignIn(with cfg: ATProtocolConfiguration) async throws -> SessionInfo {

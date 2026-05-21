@@ -14,13 +14,27 @@
 import SwiftUI
 import Bluesky
 
+#if canImport(PhotosUI)
+import PhotosUI
+#endif
+
+#if canImport(UIKit)
+import UIKit
+#endif
+
 public struct ComposeView: View {
 
     @Environment(\.apiClient) private var api: APIClient?
 
     @State private var text: String = ""
+    @State private var attachments: [ComposeAttachment] = []
     @State private var send: SendState = .idle
     @FocusState private var editorFocused: Bool
+
+    #if canImport(PhotosUI)
+    @State private var pickerSelection: [PhotosPickerItem] = []
+    @State private var attachmentError: String?
+    #endif
 
     // Equatable so `.task(id: send)` can detect transitions, and so the
     // computed helpers below can pattern-match cleanly.
@@ -55,6 +69,39 @@ public struct ComposeView: View {
                     }
                 }
 
+                Section("Images") {
+                    #if canImport(PhotosUI)
+                    // Snapshot the count so the picker's @Sendable label
+                    // closure doesn't capture the main-actor-isolated
+                    // `attachments` array directly (Swift 6 strict).
+                    let currentCount = attachments.count
+                    PhotosPicker(
+                        selection: $pickerSelection,
+                        maxSelectionCount: ComposeText.attachmentLimit - currentCount,
+                        matching: .images,
+                        photoLibrary: .shared()
+                    ) {
+                        Label("Add image (\(currentCount)/\(ComposeText.attachmentLimit))", systemImage: "photo.badge.plus")
+                    }
+                    .disabled(!ComposeText.canAttach(currentCount: currentCount) || isSending)
+                    #else
+                    Text("Image attachments are iOS-only.")
+                        .foregroundStyle(.secondary)
+                    #endif
+
+                    #if canImport(PhotosUI)
+                    if let attachmentError {
+                        Label(attachmentError, systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.red)
+                            .font(.callout)
+                    }
+                    #endif
+
+                    ForEach($attachments) { $attachment in
+                        AttachmentRow(attachment: $attachment, onRemove: { remove(attachment) })
+                    }
+                }
+
                 Section {
                     Button(action: submit) {
                         HStack {
@@ -81,8 +128,24 @@ public struct ComposeView: View {
                 try? await Task.sleep(for: .seconds(2))
                 guard case .sent = send else { return }
                 text = ""
+                attachments = []
                 send = .idle
             }
+            #if canImport(PhotosUI)
+            // PhotosPickerItems land here async; the picker itself can't host
+            // an async loader. We move loaded items into the typed
+            // `ComposeAttachment` list and immediately clear `pickerSelection`
+            // so the picker is ready for the next add (also stops the loader
+            // from re-firing on the same items if state diff'd weirdly).
+            .onChange(of: pickerSelection) { _, newItems in
+                guard !newItems.isEmpty else { return }
+                attachmentError = nil
+                Task {
+                    await ingest(items: newItems)
+                    pickerSelection.removeAll()
+                }
+            }
+            #endif
         }
     }
 
@@ -136,7 +199,9 @@ public struct ComposeView: View {
     }
 
     private var canSend: Bool {
-        api != nil && ComposeText.isSubmittable(text) && !isSending
+        api != nil
+            && ComposeText.isSubmittable(text: text, attachments: attachments)
+            && !isSending
     }
 
     private var sendButtonTitle: String {
@@ -160,16 +225,65 @@ public struct ComposeView: View {
         }
         guard canSend else { return }
         let body = text
+        // Flatten attachments into the cross-module value tuple — keeps
+        // the Bluesky SDK types from leaking out of `Bluesky`.
+        let pack = attachments.map {
+            (jpegData: $0.jpegData,
+             altText: $0.altText,
+             pixelWidth: $0.pixelWidth,
+             pixelHeight: $0.pixelHeight)
+        }
         editorFocused = false
         self.send = .sending
         Task {
             do {
-                let uri = try await api.createPost(text: body)
+                let uri = try await api.createPost(text: body, images: pack)
                 self.send = .sent(uri: uri)
             } catch {
                 self.send = .failed(message: error.localizedDescription)
             }
         }
+    }
+
+    #if canImport(PhotosUI)
+    /// Pulls picker items' raw bytes, runs each through `ImageProcessor`
+    /// (resize + JPEG re-encode under the 1 MB cap), and appends a
+    /// `ComposeAttachment` per success. The `attachmentLimit` re-check
+    /// inside the loop defends against a race where the picker hands us
+    /// more items than the cap allows (e.g. user pasted bursts).
+    private func ingest(items: [PhotosPickerItem]) async {
+        for item in items {
+            if attachments.count >= ComposeText.attachmentLimit { break }
+            do {
+                guard let raw = try await item.loadTransferable(type: Data.self) else {
+                    attachmentError = "Couldn't load one of the selected images."
+                    continue
+                }
+                let encoded = try ImageProcessor.encodeJPEG(sourceData: raw)
+                attachments.append(ComposeAttachment(
+                    jpegData: encoded.data,
+                    pixelWidth: encoded.pixelWidth,
+                    pixelHeight: encoded.pixelHeight
+                ))
+            } catch let err as ImageProcessorError {
+                attachmentError = imageErrorMessage(for: err)
+            } catch {
+                attachmentError = "Couldn't import that image."
+            }
+        }
+    }
+
+    private func imageErrorMessage(for error: ImageProcessorError) -> String {
+        switch error {
+        case .cannotDecodeSource: return "That file doesn't look like an image."
+        case .cannotEncodeJPEG:   return "Couldn't encode that image to JPEG."
+        case .cannotFit(let cap): return "Image is too big to fit under \(cap / 1024) KB even after resizing."
+        }
+    }
+    #endif
+
+    private func remove(_ attachment: ComposeAttachment) {
+        attachments.removeAll { $0.id == attachment.id }
     }
 
     private func copy(_ string: String) {
@@ -178,6 +292,54 @@ public struct ComposeView: View {
         #elseif os(macOS)
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(string, forType: .string)
+        #endif
+    }
+}
+
+// MARK: - AttachmentRow
+
+/// One row in the Images section: thumbnail + alt-text TextField +
+/// remove button. Kept in this file because it has no reason to be
+/// reused elsewhere and the binding into the parent's `attachments`
+/// array makes lifetime tied to ComposeView.
+private struct AttachmentRow: View {
+    @Binding var attachment: ComposeAttachment
+    let onRemove: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 12) {
+                thumbnail
+                    .frame(width: 72, height: 72)
+                    .clipShape(.rect(cornerRadius: 8))
+                VStack(alignment: .leading, spacing: 4) {
+                    TextField("Alt text (required for accessibility)", text: $attachment.altText, axis: .vertical)
+                        .lineLimit(2...5)
+                        .font(.callout)
+                    Text("\(attachment.pixelWidth)×\(attachment.pixelHeight)px · \((attachment.jpegData.count / 1024)) KB")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            Button(role: .destructive, action: onRemove) {
+                Label("Remove image", systemImage: "trash")
+                    .font(.caption)
+            }
+            .buttonStyle(.borderless)
+        }
+        .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private var thumbnail: some View {
+        #if canImport(UIKit)
+        if let uiImage = UIImage(data: attachment.jpegData) {
+            Image(uiImage: uiImage).resizable().scaledToFill()
+        } else {
+            Rectangle().fill(.thinMaterial)
+        }
+        #else
+        Rectangle().fill(.thinMaterial)
         #endif
     }
 }
