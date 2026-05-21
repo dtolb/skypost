@@ -22,7 +22,7 @@ public struct SignedInView: View {
 
     public let session: SessionInfo
 
-    @State private var selectedTab: AppTab = .templates
+    @State private var selectedTab: AppTab = .compose
     @Environment(TemplateApplier.self) private var applier: TemplateApplier?
 
     public init(session: SessionInfo) {
