@@ -1,3 +1,10 @@
+// ExternalLinkCard — value type for Bluesky `external` post embeds.
+//
+// Pre-Phase-F-F4: this is the payload the Composer hands APIClient when
+// it wants to attach an Open Graph card. `thumbnailJPEG` is optional
+// because not every URL has an OG image, and Bluesky's
+// `app.bsky.embed.external` accepts the embed without a `thumb` blob ref.
+
 import Foundation
 
 /// What the composer eventually attaches as a Bluesky `external` embed.

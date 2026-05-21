@@ -1,3 +1,10 @@
+// MockExternalLinkResolver — deterministic fixture impl for previews + tests.
+//
+// Three fixture URLs cover the three branches the UI cares about:
+// success-without-thumb, success-with-thumb, and badMetadata. The live
+// LPMetadataProvider-backed resolver lands in Phase F3; this stub keeps
+// ComposeView previews and the @Suite tests stable.
+
 import Foundation
 import ImageIO
 import CoreGraphics

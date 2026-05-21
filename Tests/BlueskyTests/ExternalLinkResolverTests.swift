@@ -62,6 +62,7 @@ struct MockExternalLinkResolverTests {
     func mockResolvesExampleDotComToCardWithNilThumbnail() async throws {
         let resolver = MockExternalLinkResolver()
         let card = try await resolver.resolve(url: URL(string: "https://example.com")!)
+        #expect(card.url == URL(string: "https://example.com")!)
         #expect(card.title == "Example Domain")
         #expect(card.description == "Reserved for documentation.")
         #expect(card.thumbnailJPEG == nil)
@@ -71,6 +72,7 @@ struct MockExternalLinkResolverTests {
     func mockResolvesAnthropicDotComToCardWithJPEGThumbnail() async throws {
         let resolver = MockExternalLinkResolver()
         let card = try await resolver.resolve(url: URL(string: "https://anthropic.com")!)
+        #expect(card.url == URL(string: "https://anthropic.com")!)
         #expect(card.title == "Anthropic")
         #expect(card.description == "AI safety company.")
         #expect(card.thumbnailJPEG != nil)
