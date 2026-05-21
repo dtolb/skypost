@@ -50,11 +50,7 @@ let package = Package(
 
         .target(
             name: "DesignSystem",
-            dependencies: [
-                .product(name: "Pow", package: "Pow"),
-                .product(name: "MarkdownUI", package: "swift-markdown-ui"),
-                .product(name: "NukeUI", package: "Nuke"),
-            ]
+            dependencies: []
         ),
 
         // ── Bluesky module — the ONLY place that imports ATProtoKit. ───
@@ -74,6 +70,7 @@ let package = Package(
                 "Bluesky",
                 "AppLogging",
                 "Models",
+                .product(name: "Pow", package: "Pow"),
             ]
         ),
 
@@ -95,6 +92,7 @@ let package = Package(
                 "AppLogging",
                 "Models",
                 "Templates",
+                .product(name: "Pow", package: "Pow"),
             ]
         ),
 
