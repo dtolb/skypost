@@ -14,6 +14,10 @@
 import SwiftUI
 import Bluesky
 
+#if canImport(Pow)
+import Pow
+#endif
+
 #if canImport(PhotosUI)
 import PhotosUI
 #endif
@@ -25,10 +29,14 @@ import UIKit
 public struct ComposeView: View {
 
     @Environment(\.apiClient) private var api: APIClient?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var text: String = ""
     @State private var attachments: [ComposeAttachment] = []
     @State private var send: SendState = .idle
+    // Monotonic tick that fires the send-spray + success haptic exactly once
+    // per successful post (architecture §11 step 5).
+    @State private var sendSuccessTick: Int = 0
     @FocusState private var editorFocused: Bool
 
     #if canImport(PhotosUI)
@@ -103,14 +111,7 @@ public struct ComposeView: View {
                 }
 
                 Section {
-                    Button(action: submit) {
-                        HStack {
-                            if isSending { ProgressView() }
-                            Text(sendButtonTitle).frame(maxWidth: .infinity)
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!canSend)
+                    sendButton
                 }
 
                 resultSection
@@ -125,6 +126,9 @@ public struct ComposeView: View {
             // during the dwell window isn't clobbered back to idle.
             .task(id: send) {
                 guard case .sent = send else { return }
+                // Bump BEFORE the dwell so the Pow spray + success haptic fire
+                // immediately on success, not after the auto-clear delay.
+                sendSuccessTick += 1
                 try? await Task.sleep(for: .seconds(2))
                 guard case .sent = send else { return }
                 text = ""
@@ -148,6 +152,57 @@ public struct ComposeView: View {
             }
             #endif
         }
+    }
+
+    // MARK: - Send button
+
+    // Extracted so the `#if canImport(Pow)` branch wraps a single expression
+    // instead of repeating the surrounding Section + result-section plumbing.
+    @ViewBuilder
+    private var sendButton: some View {
+        let button = Button(action: submit) {
+            HStack {
+                if isSending { ProgressView() }
+                Text(sendButtonTitle).frame(maxWidth: .infinity)
+            }
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(!canSend)
+
+        #if canImport(Pow)
+        // Reduce-motion gate (architecture §9.2): the spray is a delight
+        // flourish — for users who opted out of motion, the haptic stays
+        // off too because the visual+haptic pairing is a unit.
+        // Pow's haptic API is iOS-only; spray itself is cross-platform.
+        #if os(iOS)
+        button
+            .changeEffect(
+                .spray(origin: .center) {
+                    Image(systemName: "sparkles")
+                        .foregroundStyle(.tint)
+                },
+                value: sendSuccessTick,
+                isEnabled: !reduceMotion
+            )
+            .changeEffect(
+                .feedback(hapticNotification: .success),
+                value: sendSuccessTick,
+                isEnabled: !reduceMotion
+            )
+        #else
+        button
+            .changeEffect(
+                .spray(origin: .center) {
+                    Image(systemName: "sparkles")
+                        .foregroundStyle(.tint)
+                },
+                value: sendSuccessTick,
+                isEnabled: !reduceMotion
+            )
+        #endif
+        #else
+        button
+        #endif
     }
 
     // MARK: - Result section
