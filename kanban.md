@@ -1,8 +1,8 @@
 # Kanban — BlueSkyTemplates v2 implementation
 
-> **Handoff state — 2026-05-21:** Phases A → E all shipped end-to-end with full review chains. Phase E adds the missing Templates → Composer hand-off (the product link that makes the app actually USE its templates). 65/65 Swift Testing cases passing. Simulator launch verified at the TabView shell (selection-driven TabView with `.tag(AppTab.*)` renders, default `.templates` selected); full Use-Template-→-tab-switch-→-body-filled flow still unverified manually for the same reason as prior phases (AppleScript taps don't land on iOS surface; cliclick not installed). Phase E branch awaits Dan's push decision before MR #5 opens.
+> **Handoff state — 2026-05-21:** Phases A → E all shipped end-to-end with full review chains. Phase E adds the missing Templates → Composer hand-off (the product link that makes the app actually USE its templates). 65/65 Swift Testing cases passing. **Simulator verification driven autonomously via cliclick + osascript (Accessibility granted)** — turned up a real bug (lazy-tab-init race on first apply) which was fixed in commit `ac60d6b` and re-verified. Full Use-Template flow now works on first apply after launch. MR !5 stacked on Phase D; bug fix already pushed.
 
-**Current branch:** `feature/phase-e-templates-to-compose` (tip `aa31980`)
+**Current branch:** `feature/phase-e-templates-to-compose` (tip `ac60d6b`)
 **Open MRs:**
 - A+B: <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/2>
 - C (stacked on A+B): <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/3>
@@ -87,7 +87,9 @@ reviewer → code-quality reviewer → mark done.
 - ✅ **E3** — "Use this template" UI affordances (commits `3278b09` + `6946233` review fixes; 65/65 tests passing, xcodebuild green)
 - ✅ **E4** — ComposeView consumes `TemplateApplier.pending` (commit `aa2c894`; 65/65 tests passing, xcodebuild green)
 - ✅ **E5** — App composition wiring + SignedInView tab routing (commit `aa31980`; 65/65 tests passing, xcodebuild green)
-- ✅ **E-wrap** — final reviewer ✅ APPROVED FOR MERGE; Simulator launch verified (TabView shell + default `.templates` tab); branch pushed; MR !5 opened against `feature/phase-d-polish`
+- ✅ **E-wrap** — final reviewer ✅ APPROVED FOR MERGE; branch pushed; MR !5 opened against `feature/phase-d-polish`
+- ✅ **E-sim** — autonomous Simulator verification via cliclick + osascript (Accessibility granted): created `Daily standup` / `What did you ship?` / `bsky, work`; tested context menu, leading swipe, editor toolbar Use Template; tab routing + body fill confirmed
+- ✅ **E-fix** — caught + fixed lazy-tab-init race: first Use-Template apply silently failed because TabView with `selection:` lazy-instantiates ComposeView, whose `.onChange(of: applier?.pending?.tick)` then attached with the already-bumped tick as baseline and never fired. Fix: `.onChange(of:initial:true)` (commit `ac60d6b`). Re-verified after fresh kill+relaunch.
 
 ### Deferred-cosmetic nits (Phase E)
 - E2 nit — `applyTemplate` doesn't trim whitespace-only body; downstream submit gate trims so benign. One-line comment if revisited.
