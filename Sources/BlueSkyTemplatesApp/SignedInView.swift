@@ -6,8 +6,6 @@
 // Sign Out later. Each tab owns its own NavigationStack.
 
 import SwiftUI
-import Auth
-import Bluesky
 import Models
 import Templates
 
@@ -28,6 +26,7 @@ public struct SignedInView: View {
                 Label("Templates", systemImage: "doc.text")
             }
 
+            // HelloTabView owns its own NavigationStack — don't wrap here.
             HelloTabView(session: session)
                 .tabItem {
                     Label("Hello", systemImage: "hand.wave")
