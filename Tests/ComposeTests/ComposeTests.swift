@@ -3,6 +3,7 @@ import Foundation
 import ImageIO
 import CoreGraphics
 import Compose
+import Models
 
 @Suite("ComposeText validator")
 struct ComposeTextTests {

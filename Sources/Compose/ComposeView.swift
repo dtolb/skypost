@@ -13,6 +13,7 @@
 
 import SwiftUI
 import Bluesky
+import Models
 import Templates
 
 #if canImport(Pow)
