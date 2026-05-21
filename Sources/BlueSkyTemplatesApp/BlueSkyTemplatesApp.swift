@@ -22,6 +22,7 @@ public struct BlueSkyTemplatesApp: App {
     @State private var api: APIClient
     @State private var auth: AuthService
     @State private var router = AppRouter()
+    @State private var templateApplier = TemplateApplier()
 
     public init() {
         let api = APIClient()
@@ -34,6 +35,7 @@ public struct BlueSkyTemplatesApp: App {
             RootView()
                 .environment(auth)
                 .environment(router)
+                .environment(templateApplier)
                 .environment(\.apiClient, api)
         }
         .modelContainer(for: Template.self)
