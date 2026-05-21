@@ -197,12 +197,72 @@ struct AuthServiceStateTests {
     @Test
     @MainActor
     func signOutFromSignedInTransitionsToSignedOut() async {
-        let svc = AuthService(provider: MockAuthProvider(sessionOutcome: .success(sampleSession)))
+        let provider = MockAuthProvider(sessionOutcome: .success(sampleSession))
+        let svc = AuthService(provider: provider)
         await svc.signIn(handle: "dan.bsky.social", appPassword: "x")
         await svc.signOut()
         guard case .signedOut = svc.state else {
             Issue.record("Expected .signedOut, got \(svc.state)")
             return
         }
+        // Pin that revoke actually fired — otherwise sign-out would be
+        // local-only and the PDS would keep the session alive.
+        let revokeCount = await provider.revokeCalls
+        #expect(revokeCount == 1)
+    }
+
+    @Test
+    @MainActor
+    func signOutFromSigningInShortCircuitsToSignedOut() async {
+        // Today the guard in signOut() short-circuits anything that is
+        // not .signedIn to .signedOut without calling revoke. Pin that
+        // racy mid-sign-in tap behaves the same way (no crash, no
+        // network call against a session we don't have yet).
+        let provider = MockAuthProvider(sessionOutcome: .success(sampleSession))
+        let svc = AuthService(provider: provider)
+        async let _ = svc.signIn(handle: "dan.bsky.social", appPassword: "x")
+        await svc.signOut()
+        guard case .signedOut = svc.state else {
+            Issue.record("Expected .signedOut, got \(svc.state)")
+            return
+        }
+        // Sign-in may or may not have started before signOut wins on the
+        // main actor; we don't assert sessionCalls. We do assert no
+        // revoke happened — there was no session to revoke.
+        let revokeCount = await provider.revokeCalls
+        #expect(revokeCount == 0)
+    }
+
+    @Test
+    @MainActor
+    func restoreUnexpectedErrorLandsInError() async {
+        // Pin the broader contract from #6: any throw out of provider.restore()
+        // — not just APIError.restoreFailed — lands in .error so the user can
+        // retry. Previously these were silently swallowed to .signedOut.
+        struct WeirdError: Error, Equatable {}
+        let svc = AuthService(provider: MockAuthProvider(
+            sessionOutcome: .success(sampleSession),
+            restoreOutcome: .failure(WeirdError())
+        ))
+        await svc.restore()
+        guard case .error(let error, source: .restore) = svc.state else {
+            Issue.record("Expected .error(_, .restore) for unexpected restore throw, got \(svc.state)")
+            return
+        }
+        #expect(error is WeirdError)
+    }
+}
+
+// MARK: - SessionInfo Codable round-trip
+
+@Suite("SessionInfo Codable")
+struct SessionInfoCodableTests {
+
+    @Test
+    func roundTripsThroughJSON() throws {
+        let original = SessionInfo(did: "did:plc:abc123", handle: "dan.bsky.social")
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(SessionInfo.self, from: data)
+        #expect(decoded == original)
     }
 }
