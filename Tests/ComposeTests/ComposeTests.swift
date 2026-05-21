@@ -228,3 +228,46 @@ private enum FixtureError: Error {
     case cannotCreateDestination
     case cannotFinalize
 }
+
+@Suite("URLDetector")
+struct URLDetectorTests {
+
+    @Test
+    func emptyTextReturnsNil() {
+        #expect(URLDetector.firstURL(in: "") == nil)
+    }
+
+    @Test
+    func textWithoutURLReturnsNil() {
+        #expect(URLDetector.firstURL(in: "hello world") == nil)
+    }
+
+    @Test
+    func bareURLReturnsURL() {
+        let url = URLDetector.firstURL(in: "https://anthropic.com")
+        #expect(url != nil)
+        // Round-trip via URL(string:) so we don't assume whether
+        // NSDataDetector appends a trailing slash to the absoluteString.
+        #expect(url == URL(string: "https://anthropic.com"))
+    }
+
+    @Test
+    func schemelessHostReturnsURL() {
+        let url = URLDetector.firstURL(in: "check out anthropic.com today")
+        #expect(url != nil)
+        #expect(url?.host == "anthropic.com")
+    }
+
+    @Test
+    func multipleURLsReturnsFirst() {
+        let url = URLDetector.firstURL(in: "see https://a.com and https://b.com")
+        #expect(url?.host == "a.com")
+    }
+
+    @Test
+    func URLAdjacentToPunctuationReturnsTrimmedURL() {
+        let url = URLDetector.firstURL(in: "visit https://a.com.")
+        #expect(url?.host == "a.com")
+        #expect(url?.absoluteString.hasSuffix(".") == false)
+    }
+}
