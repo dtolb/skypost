@@ -85,15 +85,11 @@ public struct TemplateEditorView: View {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") { dismiss() }
             }
-            ToolbarItem(placement: .primaryAction) {
-                Button("Save", action: save)
-                    .disabled(!canSave)
-            }
-            if case .editing(let editing) = mode {
+            if case .editing = mode, let template = self.template {
                 #if os(iOS)
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        applier?.apply(editing)
+                        applier?.apply(template)
                         dismiss()
                     } label: {
                         Label("Use Template", systemImage: "square.and.arrow.up")
@@ -102,13 +98,17 @@ public struct TemplateEditorView: View {
                 #else
                 ToolbarItem(placement: .automatic) {
                     Button {
-                        applier?.apply(editing)
+                        applier?.apply(template)
                         dismiss()
                     } label: {
                         Label("Use Template", systemImage: "square.and.arrow.up")
                     }
                 }
                 #endif
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button("Save", action: save)
+                    .disabled(!canSave)
             }
         }
     }

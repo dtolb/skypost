@@ -39,6 +39,7 @@ public struct TemplateListView: View {
                                     Label("Use this template", systemImage: "square.and.arrow.up")
                                 }
                             }
+                            // Leading edge — keeps clear of the trailing-edge destructive swipe from `.onDelete` below.
                             .swipeActions(edge: .leading) {
                                 Button {
                                     applier?.apply(template)
