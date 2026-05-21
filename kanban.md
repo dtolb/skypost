@@ -1,20 +1,22 @@
 # Kanban — BlueSkyTemplates v2 implementation
 
-> **Handoff state — 2026-05-21:** Phases A → E all shipped end-to-end with full review chains. Phase E adds the missing Templates → Composer hand-off (the product link that makes the app actually USE its templates). 65/65 Swift Testing cases passing. **Simulator verification driven autonomously via cliclick + osascript (Accessibility granted)** — turned up a real bug (lazy-tab-init race on first apply) which was fixed in commit `ac60d6b` and re-verified. Full Use-Template flow now works on first apply after launch. MR !5 stacked on Phase D; bug fix already pushed.
+> **Handoff state — 2026-05-21:** Phases A → F shipped end-to-end. Phase F adds Open Graph link card embeds — type a URL, debounced fetch via Apple's LPMetadataProvider, preview in a LinkCardRow, send as a Bluesky `external` embed (manual record build to avoid the SDK's force-load gotcha §8.4 #6). 77/77 Swift Testing cases on Phase F tip (12 new across F1-F3; F4-F6 are UI lifecycle, covered by the deferred XCUITest backlog). Whole-phase reviewer ✅ APPROVED FOR MERGE. **Sim verification gap:** the Simulator app's device window is currently headless on this Mac — AppleScript reports 0 windows for the Simulator process even though the app is running (visible via `simctl io screenshot`). Dan can drive manual verification when at the machine.
 
-**Current branch:** `feature/phase-e-templates-to-compose` (tip `ac60d6b`)
+**Current branch:** `feature/phase-f-external-link-card` (tip `d1c7158`)
 **Open MRs:**
 - A+B: <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/2>
 - C (stacked on A+B): <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/3>
 - D (stacked on C): <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/4>
 - E (stacked on D): <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/5>
+- F (stacked on E): <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/6>
 
 **Per-phase plans:**
 - [Phase A — Templates CRUD](docs/plans/2026-05-21-phase-a-templates-crud.md)
 - [Phase B — Compose (text)](docs/plans/2026-05-21-phase-b-compose-text.md)
 - [Phase C — Compose (images)](docs/plans/2026-05-21-phase-c-compose-images.md)
 - [Phase D — Polish + Pow](docs/plans/2026-05-21-phase-d-polish.md)
-- [Phase E — Templates → Composer hand-off](docs/plans/2026-05-21-phase-e-templates-to-compose.md) (in flight)
+- [Phase E — Templates → Composer hand-off](docs/plans/2026-05-21-phase-e-templates-to-compose.md) (READY TO MERGE per final review)
+- [Phase F — External link card embed](docs/plans/2026-05-21-phase-f-external-link-card.md) (in flight)
 
 Orchestrator is the main session; implementers are fresh `swift-coder`
 (Opus 4.7) subagents per task. Each task gets: implementer → spec-compliance
@@ -99,9 +101,31 @@ reviewer → code-quality reviewer → mark done.
 - E3 nit — `TemplateEditorView` Use Template button uses the STORED `template.body/hashtags`, not the user's unsaved `bodyText/hashtagsRaw` `@State`. If user edits then taps Use Template, edits are ignored. Per-plan literal behavior; revisit with explicit UX call (auto-save? transient apply? gate behind `canSave`?).
 - E4 nit — `ComposeView.onChange(of: applier?.pending?.tick)` re-fires once after `applier?.consume()` (pending: n → nil); guard handles it cleanly but a future reader has to derive that. One-line `// consume() below re-triggers; guard short-circuits` would document it.
 
-## Phase F — sketch (post-Phase-E)
+## Phase F — External link card embed ✅ (READY TO MERGE per final review)
 
-- **Phase F — OAuth migration** (deferred until §7.3 trigger fires).
+### In Progress
+- _none — Sim verification deferred to Dan (Simulator headless on this Mac); MR !6 opened._
+
+### Done
+- ✅ **F1** — `URLDetector` helper via `NSDataDetector` + 6 tests (commit `0ed2949`; 71/71 tests passing)
+- ✅ **F2** — `ExternalLinkCard` + `ExternalLinkResolver` protocol + `MockExternalLinkResolver` + 6 tests (commits `5aa3bcc` + `9e8f2dd` review fixes; 77/77 tests passing)
+- ✅ **F3** — `LiveExternalLinkResolver` via `LPMetadataProvider` + `ImageProcessor` relocate prereq + helper tests (commits `288dd42` relocate + `c82fcbc` resolver + `cdc9ddd` review fixes; 77/77 macOS + 80/80 iOS gated, xcodebuild green)
+- ✅ **F4** — `APIClient.createPost(text:external:)` overload (Option A — manual record build via `uploadBlob` + `createRecord`) + images-precedence (commits `2463591` + `b9eb0ef` review fixes; 77/77 tests passing, xcodebuild green)
+- ✅ **F5** — ComposeView wiring + card preview UI (debounced `.task(id: detectedURL)`) + a11y + loading-escape (commits `8232fcf` + `e4d5749` review fixes; 77/77 tests passing, xcodebuild green)
+- ✅ **F6** — App composition wiring (commit `04836d6`); whole-phase final reviewer ✅ APPROVED FOR MERGE; doc follow-ups (UI test backlog entries + carry-forward nits) at commit `d1c7158`. Sim verification blocked by headless Simulator window on this Mac — deferred to Dan's next session.
+
+### Deferred nits (Phase F)
+- F1 — characterization test for `mailto:` / `tel:` schemes. The runtime fix landed in F5 (`ComposeView.detectedURL` filters to http/https only); kanban entry remains as a *unit-test* deferral.
+- F1 — test name `URLAdjacentToPunctuationReturnsTrimmedURL` uses leading-capital `URL`; siblings in the file are mixed but lower-camel preferred.
+- F4 — orphaned blob on `createRecord` failure: the Option A path uploads the thumbnail blob BEFORE calling `createRecord`. If `createRecord` throws, the blob is orphaned on the user's PDS. Bluesky GCs unreferenced blobs (interval undocumented); architecture spec doesn't require cleanup. Revisit if it ever shows up in user PDS storage quotas.
+- F4 — language fallback `["en"]` vs SDK's `compactMap.isEmpty ? nil : ...` form. Pathological only when `locale.language.languageCode` is nil; cosmetic.
+- F4 — thumbnail filename pattern `"thumb_<uuid>.jpg"` vs SDK's `"<random>_thumbnail.jpg"`. Bluesky ignores filename; cosmetic.
+- F5 — `if case .idle = linkState { } else { Section("Link") { ... } }` — empty-then-branch reads inverted vs convention; behavior correct.
+- F5 — `submit()` IIFE `let card: ExternalLinkCard? = { ... }()` reads dense; `if case .loaded(let c) = linkState { card = c } else { card = nil }` would be cleaner.
+
+## Phase G — sketch (post-Phase-F)
+
+- **OAuth migration** (deferred until architecture §7.3 trigger fires).
 - **Deferred-cleanup track**: plan #8 (App struct rename), plan #10 (@MainActor consistency), plan #12 (Keychain duplicate), plan #13 (app icon), plan #15 (DesignSystem semantic colors), ComposeView cosmetic nits (lines 75-76 ternary, `copy(_:)` missing `#else`), E2/E3/E4 cosmetic nits (this file's "Deferred-cosmetic nits (Phase E)"). Nuke LazyImage when a feed/CDN-URL surface arrives.
 - **Feature track candidates**: reply / quote support, external link card embed, Save draft as template (round-trip of Phase E).
 - **UI test harness**: backlog at [`docs/ui-test-backlog.md`](docs/ui-test-backlog.md); plan at [`docs/plans/2026-05-21-ui-test-harness.md`](docs/plans/2026-05-21-ui-test-harness.md). Deferred per Dan's "features for a while" directive; pick up when backlog crosses ~10 P0/P1 items or after 2-3 more feature phases.

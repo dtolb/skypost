@@ -11,6 +11,16 @@
 - **P2** — edge cases / accessibility / iPad-or-future-device coverage.
 - **P3** — speculative / nice-to-have.
 
+## Phase F — External link card embed
+
+- **P1** | `URLInTextAttachesCardWithin1s` — type `Check out https://example.com today` in Compose; within ~1.5s (600ms debounce + LP fetch), expect `Link` section to appear with the card. Verifies the `.task(id: detectedURL)` + resolver chain end-to-end.
+- **P1** | `URLPlusImagesSuppressesCard` — attach an image, then type a URL; expect no `Link` section appears. Verifies the `attachments.isEmpty` gate on `detectedURL`. URL still becomes a body facet (verified server-side, untestable from XCUITest — out of scope).
+- **P2** | `TimeoutPathShowsRemovableFailedBanner` — point the test at a URL the mock resolver throws `.timeout` for; expect the `.failed` row with a Remove button within ~10s. Verifies the `withThrowingTaskGroup` deadline race + UI failure rendering.
+- **P1** | `RemoveDuringLoadingDismissesURLAndCancelsTask` — type a URL, immediately tap Remove on the `.loading` row; expect the section disappears AND retyping the same URL does NOT re-attach (dismissedURLs sticky). Verifies the F5 fix for loading-escape + the dismissed-URL chain.
+- **P1** | `TemplateApplyDoesNotAutoAttachCardForBodyURL` — create a template whose body contains `Check out https://example.com`, apply it; expect Compose body fills with that text but the Link card section depends on the post-apply debounce + auto-detect. Either it fires (current behavior) or doesn't (intended for template flow). Lock in current behavior with whichever way it shipped — this is the cross-feature regression risk the whole-phase reviewer flagged.
+- **P2** | `MailtoURLDoesNotAttachCard` — type `email me at foo@bar.com`. Expect NO link card. Verifies the F5 http/https-only filter on `detectedURL` (closes F1's deferred mailto/tel characterization).
+- **P3** | `LinkCardThumbnailAccessibility` — VoiceOver reads the card as one combined element ("Link preview: title. description. host") with the Remove button as a separately focusable control. Verifies the F5 a11y fix-pass.
+
 ## Phase E — Templates → Composer hand-off
 
 - **P0** | `firstApplyAfterLaunchFillsComposer` — fresh launch, create a template, tap "Use Template" from the editor toolbar, verify Compose tab is selected AND `text` reads `body\n\n#tags`. Catches the lazy-tab-init race (commit `ac60d6b`).

@@ -206,11 +206,33 @@ public actor APIClient {
     /// pack a `ComposeAttachment` into this call without leaking the
     /// Bluesky SDK's `ATProtoTools.ImageQuery` type across module
     /// boundaries (per architecture §6.1).
+    ///
+    /// Images and `external` are mutually exclusive at the wire level —
+    /// Bluesky's `app.bsky.embed` slot is a single union value, so an
+    /// images embed wins over an external card when both are supplied.
+    /// The URL is still parsed into a clickable facet on the body text by
+    /// `ATFacetParser.parseFacets`, so the link doesn't disappear; only
+    /// the OG card preview is dropped. The caller gets a `.notice` log
+    /// entry as a debugging breadcrumb.
     public func createPost(
         text: String,
         images: [(jpegData: Data, altText: String, pixelWidth: Int, pixelHeight: Int)],
+        external: ExternalLinkCard? = nil,
         locale: Locale = .current
     ) async throws -> String {
+        // If there are no images and we *do* have an external card,
+        // delegate to the external-only overload (which bypasses
+        // `createPostRecord` to avoid the SDK's `Data(contentsOf:)` thumb
+        // load — see that overload's doc comment).
+        if images.isEmpty, let external {
+            return try await createPost(text: text, external: external, locale: locale)
+        }
+        // If both were supplied, log a notice and drop the external card.
+        // The URL stays in the body and becomes a clickable facet.
+        if !images.isEmpty, external != nil {
+            Log.network.notice("createPost: external card dropped because images embed wins")
+        }
+
         guard let bluesky else { throw APIError.notAuthenticated }
         let queries = images.map { img in
             ATProtoTools.ImageQuery(
@@ -231,6 +253,122 @@ public actor APIClient {
             return ref.recordURI
         } catch {
             Log.network.error("createPostRecord(images) failed: \(error.localizedDescription, privacy: .public)")
+            throw APIError.postFailed(reason: error.localizedDescription)
+        }
+    }
+
+    /// Posts text with an attached Open Graph external-link card.
+    ///
+    /// Bypasses `ATProtoBluesky.createPostRecord` for the external-card
+    /// path because the SDK's helper would force-load the thumbnail via
+    /// `Data(contentsOf:)` on a background URL — synchronous network I/O
+    /// the architecture explicitly rules out (§8.4 gotcha #6). Instead
+    /// we pre-upload the thumbnail blob ourselves via
+    /// `ATProtoKit.uploadBlob`, construct an
+    /// `AppBskyLexicon.Feed.PostRecord` directly, and POST it via
+    /// `ATProtoKit.createRecord`.
+    ///
+    /// Trade-offs vs the SDK helper:
+    /// * Long URLs in the body are *not* `…`-truncated like
+    ///   `truncateAndReplaceLinks` does — they stay full-length but still
+    ///   become clickable facets via `ATFacetParser.parseFacets`. The
+    ///   OG card path almost never combines with prose URLs (the user
+    ///   typed *one* URL and we replaced it with the card), so the
+    ///   visible-text impact is negligible.
+    /// * The SDK's internal 500 ms post-create sleep is dropped — we
+    ///   don't need it, the next read goes through the same PDS that
+    ///   just wrote the record.
+    public func createPost(
+        text: String,
+        external: ExternalLinkCard,
+        locale: Locale = .current
+    ) async throws -> String {
+        guard let kit else { throw APIError.notAuthenticated }
+        // Auth resolution lives *outside* the do/catch so a missing
+        // session or empty keychain surfaces as `.notAuthenticated`
+        // (caller routes to sign-in) rather than `.postFailed` (caller
+        // shows a retry banner). Mirrors the images overload, which
+        // throws `.notAuthenticated` before its do-block.
+        guard let session = try await kit.getUserSession() else {
+            throw APIError.notAuthenticated
+        }
+        // `UserSession.pdsURL` is the PDS endpoint as a `String?`
+        // (e.g. `"https://bsky.social"`). Both `uploadBlob` and
+        // `parseFacets` consume the same `String` shape, so we keep
+        // it un-wrapped to a `URL`. Fall back to the public PDS for
+        // accounts whose session somehow lacks one — matches the
+        // SDK's own behaviour.
+        let pdsURL = session.pdsURL ?? "https://bsky.social"
+        let accessToken: String
+        do {
+            accessToken = try await keychain.retrieveAccessToken()
+        } catch {
+            // Keychain item missing or unreadable mid-flow means the
+            // session we just got from `getUserSession` is unusable
+            // for write requests. Treat as cleanly signed-out so the
+            // UI routes back to sign-in rather than offering a retry
+            // that would fail the same way.
+            Log.network.error("createPost(external): access token retrieval failed: \(error.localizedDescription, privacy: .public)")
+            throw APIError.notAuthenticated
+        }
+
+        do {
+            // Pre-upload thumbnail blob ourselves so we never call
+            // `Data(contentsOf:)` on a thumbnail URL (§8.4 #6). The card
+            // already carries the JPEG bytes from the resolver step.
+            var thumbBlob: ComAtprotoLexicon.Repository.UploadBlobOutput? = nil
+            if let jpeg = external.thumbnailJPEG {
+                let result = try await kit.uploadBlob(
+                    pdsURL: pdsURL,
+                    accessToken: accessToken,
+                    filename: "thumb_\(UUID().uuidString).jpg",
+                    imageData: jpeg
+                )
+                thumbBlob = result.blob
+            }
+
+            // Build the external embed payload. `External.description`
+            // is non-optional `String` per the lexicon, so any nil
+            // resolver field has already been collapsed to `""` upstream.
+            let externalDefinition = AppBskyLexicon.Embed.ExternalDefinition(
+                external: AppBskyLexicon.Embed.ExternalDefinition.External(
+                    uri: external.url,
+                    title: external.title,
+                    description: external.description,
+                    thumbnailImage: thumbBlob
+                )
+            )
+
+            // Parse facets for the body so URLs / mentions / hashtags in
+            // the user's text become clickable.
+            let facets = await ATFacetParser.parseFacets(from: text, pdsURL: pdsURL)
+
+            // Compile the record. Param order matches the SDK's
+            // memberwise init exactly so we don't drift if the lexicon
+            // is regenerated.
+            let postRecord = AppBskyLexicon.Feed.PostRecord(
+                text: text,
+                facets: facets.isEmpty ? nil : facets,
+                reply: nil,
+                embed: .external(externalDefinition),
+                languages: [locale.language.languageCode?.identifier ?? "en"],
+                labels: nil,
+                tags: nil,
+                createdAt: Date()
+            )
+
+            let ref = try await kit.createRecord(
+                repositoryDID: session.sessionDID,
+                collection: "app.bsky.feed.post",
+                recordKey: nil,
+                shouldValidate: nil,
+                record: .record(postRecord),
+                swapCommit: nil
+            )
+            Log.network.info("Posted record with external card uri=\(ref.recordURI, privacy: .public)")
+            return ref.recordURI
+        } catch {
+            Log.network.error("createPost(external) failed: \(error.localizedDescription, privacy: .public)")
             throw APIError.postFailed(reason: error.localizedDescription)
         }
     }
