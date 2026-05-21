@@ -1,5 +1,8 @@
 .DS_Store
 
+# Local reference clones — not part of the project
+.research/
+
 # Xcode
 #
 # gitignore contributors: remember to update Global/Xcode.gitignore, Objective-C.gitignore & Swift.gitignore
