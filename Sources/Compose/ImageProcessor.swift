@@ -27,23 +27,26 @@ public struct ImageProcessor {
         maxLongerEdge: Int = 2048
     ) throws -> (data: Data, pixelWidth: Int, pixelHeight: Int) {
 
-        // 1. Open the source. A nil source or zero-count source means
-        //    ImageIO couldn't recognize the bytes as an image.
+        // CGImageSourceCreateWithData returns a non-nil handle even for inputs
+        // that have zero usable images (e.g. truncated downloads, container
+        // formats with no decoded frame). Both modes must throw .cannotDecodeSource.
+        //
+        // Downsample with kCGImageSourceCreateThumbnailFromImageAlways = true so
+        // we always re-derive from the source (chained thumbnail-of-thumbnail
+        // would accumulate quantization loss across retry shrinks).
         guard let source = CGImageSourceCreateWithData(sourceData as CFData, nil),
               CGImageSourceGetCount(source) > 0 else {
             throw ImageProcessorError.cannotDecodeSource
         }
 
-        // 2. Pull original pixel dims from the image properties dict.
         guard let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
               let originalWidth = props[kCGImagePropertyPixelWidth] as? Int,
               let originalHeight = props[kCGImagePropertyPixelHeight] as? Int else {
             throw ImageProcessorError.cannotDecodeSource
         }
 
-        // 3. Dimension shrink loop: try the requested edge cap first;
-        //    if even quality 0.30 won't fit, halve the cap and retry,
-        //    stopping at the 256-pixel floor.
+        // Outer loop halves the longer-edge cap when even quality 0.30 can't
+        // fit; floor at 256px so we can't loop forever on a pathological input.
         let minimumLongerEdge = 256
         var currentMax = maxLongerEdge
 
@@ -55,20 +58,16 @@ public struct ImageProcessor {
                 maxLongerEdge: currentMax
             )
 
-            // 4. Quality bisection: walk 0.85 → 0.30 in 0.05 steps. The
-            //    first hit wins (callers want the highest fidelity that
-            //    fits). Coarse steps keep the loop bounded (~12 encodes)
-            //    while still giving fine-grained quality control.
-            for quality in stride(from: 0.85, through: 0.30, by: -0.05) {
+            // Highest-fidelity-that-fits wins; explicit array keeps the
+            // tried quality values bit-exact across runs.
+            let qualities: [Double] = [0.85, 0.80, 0.75, 0.70, 0.65, 0.60, 0.55, 0.50, 0.45, 0.40, 0.35, 0.30]
+            for quality in qualities {
                 let data = try encode(cgImage: cgImage, quality: quality)
                 if data.count <= maxBytes {
                     return (data, cgImage.width, cgImage.height)
                 }
             }
 
-            // 5. Quality floor reached and still too big. Halve the
-            //    longer-edge cap and retry. `currentMax / 2` may drop
-            //    below the floor on the next iteration, which exits.
             currentMax /= 2
         }
 

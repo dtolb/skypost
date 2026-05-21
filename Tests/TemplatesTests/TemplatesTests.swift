@@ -172,7 +172,7 @@ struct HashtagParserTests {
     @MainActor
     func roundTripsThroughTemplateInit() throws {
         let parsed = parseHashtags("#a, B")
-        let container = try inMemoryHashtagContainer()
+        let container = try inMemoryContainer()
         let context = ModelContext(container)
         let t = Template(title: "t", body: "b", hashtags: parsed)
         context.insert(t)
@@ -184,8 +184,3 @@ struct HashtagParserTests {
     }
 }
 
-@MainActor
-private func inMemoryHashtagContainer() throws -> ModelContainer {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    return try ModelContainer(for: Template.self, configurations: config)
-}

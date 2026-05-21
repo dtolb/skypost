@@ -138,6 +138,7 @@ public struct ComposeView: View {
             // so the picker is ready for the next add (also stops the loader
             // from re-firing on the same items if state diff'd weirdly).
             .onChange(of: pickerSelection) { _, newItems in
+                // Our removeAll() reset re-fires .onChange with an empty array; ignore the round-trip.
                 guard !newItems.isEmpty else { return }
                 attachmentError = nil
                 Task {
@@ -220,7 +221,7 @@ public struct ComposeView: View {
     private func submit() {
         guard let api else {
             // Preview / un-injected: don't crash, surface why nothing happened.
-            send = .failed(message: "Composer is not connected to the network yet.")
+            send = .failed(message: "No account connected.")
             return
         }
         guard canSend else { return }
@@ -234,13 +235,13 @@ public struct ComposeView: View {
              pixelHeight: $0.pixelHeight)
         }
         editorFocused = false
-        self.send = .sending
+        send = .sending
         Task {
             do {
                 let uri = try await api.createPost(text: body, images: pack)
-                self.send = .sent(uri: uri)
+                send = .sent(uri: uri)
             } catch {
-                self.send = .failed(message: error.localizedDescription)
+                send = .failed(message: error.localizedDescription)
             }
         }
     }
@@ -252,6 +253,7 @@ public struct ComposeView: View {
     /// inside the loop defends against a race where the picker hands us
     /// more items than the cap allows (e.g. user pasted bursts).
     private func ingest(items: [PhotosPickerItem]) async {
+        attachmentError = nil   // a fresh ingest clears any prior banner
         for item in items {
             if attachments.count >= ComposeText.attachmentLimit { break }
             do {
@@ -316,7 +318,7 @@ private struct AttachmentRow: View {
                     TextField("Alt text (required for accessibility)", text: $attachment.altText, axis: .vertical)
                         .lineLimit(2...5)
                         .font(.callout)
-                    Text("\(attachment.pixelWidth)×\(attachment.pixelHeight)px · \((attachment.jpegData.count / 1024)) KB")
+                    Text("\(attachment.pixelWidth)×\(attachment.pixelHeight)px · \(attachment.jpegData.count.formatted(.byteCount(style: .file)))")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }

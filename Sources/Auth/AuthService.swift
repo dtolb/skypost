@@ -73,6 +73,14 @@ public final class AuthService {
     ///    of being silently logged out.
     public func restore() async {
         state = .restoring
+        defer {
+            // Guard against an early exit (cancellation, unanticipated throw site
+            // changes) leaving the UI hung on the splash spinner — if we're
+            // still .restoring when this function exits, fall back to signedOut.
+            if case .restoring = state {
+                state = .signedOut
+            }
+        }
         do {
             if let session = try await provider.restore() {
                 state = .signedIn(session)

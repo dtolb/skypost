@@ -8,6 +8,13 @@ import Models
 
 public struct LoginView: View {
 
+    private static let appPasswordSettingsURL: URL = {
+        // Force-unwrapped because the literal is checked at compile time; if
+        // the URL is invalid, every build would crash on launch — making this
+        // a programmer-error guard, not a runtime fallback.
+        URL(string: "https://bsky.app/settings/app-passwords")!
+    }()
+
     @Environment(AuthService.self) private var auth
 
     @State private var handle: String = ""
@@ -56,7 +63,7 @@ public struct LoginView: View {
                         Text("Use an app password, not your account password.")
                         Link(
                             "Generate one at bsky.app/settings/app-passwords",
-                            destination: URL(string: "https://bsky.app/settings/app-passwords")!
+                            destination: Self.appPasswordSettingsURL
                         )
                         .font(.footnote)
                     }
