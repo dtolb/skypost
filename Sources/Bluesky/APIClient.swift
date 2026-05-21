@@ -52,11 +52,16 @@ public actor APIClient {
 
     /// Authenticates with the PDS using an app password and stores the
     /// resulting refresh token in the Keychain.
+    ///
+    /// Handle and password are normalized here — the service layer is the
+    /// single source of truth so UI doesn't have to know the rules.
     public func authenticate(handle: String, appPassword: String) async throws -> SessionInfo {
-        Log.auth.info("Authenticating handle=\(handle, privacy: .public)")
+        let normalizedHandle = handle.bskyNormalizedHandle
+        let normalizedPassword = appPassword.trimmingCharacters(in: .whitespacesAndNewlines)
+        Log.auth.info("Authenticating handle=\(normalizedHandle, privacy: .public)")
         let cfg = ATProtocolConfiguration(keychainProtocol: keychain)
         do {
-            try await cfg.authenticate(with: handle, password: appPassword)
+            try await cfg.authenticate(with: normalizedHandle, password: normalizedPassword)
         } catch {
             Log.auth.error("Authenticate failed: \(error.localizedDescription, privacy: .public)")
             throw APIError.authenticationFailed(reason: error.localizedDescription)
@@ -146,5 +151,18 @@ public actor APIClient {
         let info = SessionInfo(did: user.sessionDID, handle: user.handle)
         Log.auth.info("Signed in did=\(info.did, privacy: .private(mask: .hash)) handle=\(info.handle, privacy: .public)")
         return info
+    }
+}
+
+// MARK: - Handle normalization
+
+extension String {
+    /// Bluesky handle, normalized: leading/trailing whitespace stripped,
+    /// any leading `@` removed, lowercased. Module-internal so the
+    /// service layer is the only normalization point; exposed for tests.
+    var bskyNormalizedHandle: String {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        let unprefixed = trimmed.drop(while: { $0 == "@" })
+        return unprefixed.lowercased()
     }
 }

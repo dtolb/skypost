@@ -125,6 +125,10 @@ let package = Package(
             name: "AuthTests",
             dependencies: ["Auth"]
         ),
+        .testTarget(
+            name: "BlueskyTests",
+            dependencies: ["Bluesky"]
+        ),
     ],
     swiftLanguageModes: [.v6]
 )
