@@ -6,6 +6,7 @@
 
 import SwiftUI
 import SwiftData
+import DesignSystem
 
 public struct TemplateListView: View {
 
@@ -22,11 +23,28 @@ public struct TemplateListView: View {
         NavigationStack {
             Group {
                 if templates.isEmpty {
-                    ContentUnavailableView(
-                        "No templates yet",
-                        systemImage: "doc.text",
-                        description: Text("Tap + to create one.")
-                    )
+                    ScrollView {
+                        VStack(spacing: 16) {
+                            WelcomeHero(
+                                "No templates yet",
+                                subtitle: "Tap + to save your first."
+                            )
+                            BrandCard {
+                                Button {
+                                    newSheetPresented = true
+                                } label: {
+                                    Label("New template", systemImage: "plus")
+                                        .font(.headline)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 4)
+                                }
+                                .buttonStyle(.borderedProminent)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                    }
+                    .background(pageBackground)
                 } else {
                     List {
                         ForEach(templates) { template in
@@ -91,6 +109,17 @@ public struct TemplateListView: View {
         modelContext.delete(template)
         try? modelContext.save()
     }
+
+    /// Grouped-form-style page background. On iOS this is the dynamic
+    /// `systemGroupedBackground`; on macOS we approximate with a light
+    /// gray that contrasts with `Color.white` card surfaces.
+    private var pageBackground: Color {
+        #if canImport(UIKit)
+        Color(uiColor: .systemGroupedBackground)
+        #else
+        Color(white: 0.95)
+        #endif
+    }
 }
 
 // MARK: - Row
@@ -99,16 +128,22 @@ private struct TemplateRow: View {
     let template: Template
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(template.title).font(.headline)
-            Text(template.body)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-            if !template.hashtags.isEmpty {
-                Text(template.hashtags.map { "#\($0)" }.joined(separator: " "))
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+        HStack(alignment: .top, spacing: 12) {
+            LeadIcon(
+                systemName: "doc.text",
+                tint: BrandColor.deterministicColor(for: template.title)
+            )
+            VStack(alignment: .leading, spacing: 4) {
+                Text(template.title).font(.headline)
+                Text(template.body)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                if !template.hashtags.isEmpty {
+                    Text(template.hashtags.map { "#\($0)" }.joined(separator: " "))
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
             }
         }
         .padding(.vertical, 2)
