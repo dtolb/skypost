@@ -44,8 +44,14 @@ public struct LiveExternalLinkResolver: ExternalLinkResolver {
     }
 
     public func resolve(url: URL) async throws -> ExternalLinkCard {
+        Log.network.info("Resolving OG card host=\(url.host ?? "?", privacy: .public)")
         let metadata = try await fetchMetadata(for: url)
-        let title = metadata.title ?? url.host ?? "Link"
+        // LPLinkMetadata.title is documented as String? but the framework
+        // does not promise non-empty when present; an empty title here
+        // would render as a blank-looking card. Trim + nil-coalesce so we
+        // fall through to the host / "Link" instead.
+        let candidateTitle = metadata.title?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = (candidateTitle?.isEmpty == false ? candidateTitle : nil) ?? url.host ?? "Link"
         let description = Self.fallbackDescription(for: url)
         // Per .thumbnailLoadFailed's WHY: a missing thumb is recoverable;
         // we still want to attach a card with title + description.
@@ -65,35 +71,48 @@ public struct LiveExternalLinkResolver: ExternalLinkResolver {
     /// `withTaskCancellationHandler` propagates structural cancellation
     /// from ComposeView's `.task(id:)` into `provider.cancel()`.
     private func fetchMetadata(for url: URL) async throws -> LPLinkMetadata {
-        try await withThrowingTaskGroup(of: LPLinkMetadata.self) { group in
-            let provider = LPMetadataProvider()
-            group.addTask {
-                try await withTaskCancellationHandler {
-                    try await withCheckedThrowingContinuation { continuation in
-                        provider.startFetchingMetadata(for: url) { metadata, error in
-                            if let metadata {
-                                continuation.resume(returning: metadata)
-                            } else {
-                                continuation.resume(
-                                    throwing: error ?? ExternalLinkResolverError.badMetadata
-                                )
+        do {
+            return try await withThrowingTaskGroup(of: LPLinkMetadata.self) { group in
+                let provider = LPMetadataProvider()
+                group.addTask {
+                    try await withTaskCancellationHandler {
+                        try await withCheckedThrowingContinuation { continuation in
+                            provider.startFetchingMetadata(for: url) { metadata, error in
+                                if let metadata {
+                                    continuation.resume(returning: metadata)
+                                } else {
+                                    continuation.resume(
+                                        throwing: error ?? ExternalLinkResolverError.badMetadata
+                                    )
+                                }
                             }
                         }
+                    } onCancel: {
+                        provider.cancel()
                     }
-                } onCancel: {
-                    provider.cancel()
                 }
+                group.addTask {
+                    try await Task.sleep(for: timeout)
+                    throw ExternalLinkResolverError.timeout
+                }
+                // `group.next()` only returns nil when the group is empty;
+                // we added two tasks above, so nil is unreachable. Crash
+                // rather than silently swallowing the bug as .badMetadata.
+                guard let winner = try await group.next() else {
+                    fatalError("LiveExternalLinkResolver: TaskGroup empty after addTask")
+                }
+                group.cancelAll()
+                return winner
             }
-            group.addTask {
-                try await Task.sleep(for: timeout)
-                throw ExternalLinkResolverError.timeout
-            }
-            let winner = try await group.next()
-            group.cancelAll()
-            guard let winner else {
-                throw ExternalLinkResolverError.badMetadata
-            }
-            return winner
+        } catch ExternalLinkResolverError.timeout {
+            // Not an error per se — slow URLs are worth surfacing in
+            // production logs so we can correlate user reports against
+            // specific hosts without scraping the failure logs.
+            Log.network.notice("OG card fetch timed out host=\(url.host ?? "?", privacy: .public)")
+            throw ExternalLinkResolverError.timeout
+        } catch {
+            Log.network.error("OG card metadata fetch failed: \(error.localizedDescription, privacy: .public)")
+            throw error
         }
     }
 
@@ -139,7 +158,7 @@ public struct LiveExternalLinkResolver: ExternalLinkResolver {
     /// show "anthropic.com/news/whatever" instead of a 200-char query soup.
     static func fallbackDescription(for url: URL) -> String {
         let host = url.host ?? ""
-        let path = url.path
+        let path = url.path(percentEncoded: false)
         if !path.isEmpty && path != "/" {
             return "\(host)\(path)"
         }
