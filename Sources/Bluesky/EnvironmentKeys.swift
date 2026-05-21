@@ -24,3 +24,25 @@ extension EnvironmentValues {
         set { self[APIClientKey.self] = newValue }
     }
 }
+
+// Default is nil so previews / tests / un-injected subtrees see "no
+// resolver" rather than a real LPMetadataProvider that would hit the
+// network on every keystroke. The App is the single point of injection
+// (see `BlueSkyTemplatesApp`, Phase F6). `ExternalLinkResolver` is a
+// protocol — not an actor and not `@Observable` — so we use the classic
+// `EnvironmentKey` pattern over `.environment(SomeType.self)`; the
+// existential (`any ExternalLinkResolver`) is the contract Compose
+// consumes, which lets tests swap in `MockExternalLinkResolver`
+// painlessly. Lives in `Bluesky` for the same reason as `\.apiClient`:
+// every consuming module already imports Bluesky, so the env slot is
+// shared.
+private struct ExternalLinkResolverKey: EnvironmentKey {
+    static let defaultValue: (any ExternalLinkResolver)? = nil
+}
+
+extension EnvironmentValues {
+    public var externalLinkResolver: (any ExternalLinkResolver)? {
+        get { self[ExternalLinkResolverKey.self] }
+        set { self[ExternalLinkResolverKey.self] = newValue }
+    }
+}

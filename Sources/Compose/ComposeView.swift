@@ -10,6 +10,15 @@
 // Graceful when no APIClient is injected (e.g. previews): the Send button
 // stays disabled via `canSend`, and an explicit tap surfaces an error
 // message rather than crashing the way the Hello tab does.
+//
+// Phase F link-card auto-detect: when the user types a http/https URL,
+// `.task(id: detectedURL)` debounces 600ms, then calls the injected
+// `ExternalLinkResolver` to fetch OG metadata. Result renders as a
+// `LinkCardRow` in the Link section. User can dismiss via Remove (URL
+// goes into `dismissedURLs` so it doesn't auto-re-attach). Images embed
+// wins per Bluesky's exclusive embed slot — when `!attachments.isEmpty`,
+// `detectedURL` returns nil and no card surfaces. URL still becomes a
+// clickable facet via ATFacetParser server-side.
 
 import SwiftUI
 import Bluesky
@@ -31,6 +40,7 @@ import UIKit
 public struct ComposeView: View {
 
     @Environment(\.apiClient) private var api: APIClient?
+    @Environment(\.externalLinkResolver) private var resolver: (any ExternalLinkResolver)?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(TemplateApplier.self) private var applier: TemplateApplier?
 
@@ -40,6 +50,13 @@ public struct ComposeView: View {
     // Monotonic tick that fires the send-spray + success haptic exactly once
     // per successful post (architecture §11 step 5).
     @State private var sendSuccessTick: Int = 0
+    // Link-card flow (Phase F): four-state machine driven by
+    // `.task(id: detectedURL)`. `dismissedURLs` is the user's "I don't
+    // want a card for this URL" memory — Remove drops the URL in here so
+    // re-evaluating `detectedURL` after the next keystroke doesn't
+    // auto-re-attach the same card.
+    @State private var linkState: LinkLoadState = .idle
+    @State private var dismissedURLs: Set<URL> = []
     @FocusState private var editorFocused: Bool
 
     #if canImport(PhotosUI)
@@ -54,6 +71,15 @@ public struct ComposeView: View {
         case sending
         case sent(uri: String)
         case failed(message: String)
+    }
+
+    // Equatable so `.task(id: linkState)` style observers are possible
+    // and the .loaded case can compare ExternalLinkCards by value.
+    private enum LinkLoadState: Equatable {
+        case idle
+        case loading(URL)
+        case loaded(ExternalLinkCard)
+        case failed(URL, reason: String)
     }
 
     public init() {}
@@ -113,6 +139,16 @@ public struct ComposeView: View {
                     }
                 }
 
+                // Hide the Link section entirely when idle; rendering an
+                // empty Section still draws its header chrome.
+                if case .idle = linkState {
+                    EmptyView()
+                } else {
+                    Section("Link") {
+                        linkSectionContent
+                    }
+                }
+
                 Section {
                     sendButton
                 }
@@ -136,7 +172,44 @@ public struct ComposeView: View {
                 guard case .sent = send else { return }
                 text = ""
                 attachments = []
+                linkState = .idle
+                dismissedURLs.removeAll()
                 send = .idle
+            }
+            // Phase F link-card flow: re-fires whenever `detectedURL`
+            // changes (text edits, attachments toggling, user dismissal).
+            // SwiftUI auto-cancels the previous task — `Task.sleep` throws
+            // CancellationError, which we treat as "newer URL took over".
+            .task(id: detectedURL) {
+                guard let url = detectedURL else {
+                    linkState = .idle
+                    return
+                }
+                // Debounce so we don't fetch on every keystroke. If the
+                // user keeps typing within 600ms, the task is cancelled
+                // and we never reach the resolver.
+                do {
+                    try await Task.sleep(for: .milliseconds(600))
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled else { return }
+                guard let resolver else {
+                    // No resolver injected (previews / tests). Surface
+                    // nothing — URL still becomes a clickable facet
+                    // server-side via ATFacetParser.
+                    linkState = .idle
+                    return
+                }
+                linkState = .loading(url)
+                do {
+                    let card = try await resolver.resolve(url: url)
+                    guard !Task.isCancelled else { return }
+                    linkState = .loaded(card)
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    linkState = .failed(url, reason: "Couldn't load preview.")
+                }
             }
             // Phase E hand-off: when a template is applied from the Templates
             // tab, ingest its body + hashtags wholesale (architecture §6.1 +
@@ -161,6 +234,8 @@ public struct ComposeView: View {
                 else { return }
                 text = ComposeText.applyTemplate(body: pending.body, hashtags: pending.hashtags)
                 attachments = []
+                linkState = .idle
+                dismissedURLs.removeAll()
                 send = .idle
                 applier?.consume()
                 editorFocused = true
@@ -235,6 +310,39 @@ public struct ComposeView: View {
         #endif
     }
 
+    // MARK: - Link section
+
+    @ViewBuilder
+    private var linkSectionContent: some View {
+        switch linkState {
+        case .idle:
+            // Unreachable: the call site already guards `if case .idle`
+            // around the surrounding Section. Kept for exhaustiveness.
+            EmptyView()
+        case .loading(let url):
+            HStack {
+                ProgressView()
+                Text(url.host ?? "Loading preview…")
+                    .foregroundStyle(.secondary)
+            }
+        case .loaded(let card):
+            LinkCardRow(card: card, onRemove: {
+                dismissedURLs.insert(card.url)
+                linkState = .idle
+            })
+        case .failed(let url, let reason):
+            HStack {
+                Label(reason, systemImage: "link.badge.minus")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Remove") {
+                    dismissedURLs.insert(url)
+                    linkState = .idle
+                }
+            }
+        }
+    }
+
     // MARK: - Result section
 
     @ViewBuilder
@@ -270,6 +378,24 @@ public struct ComposeView: View {
     }
 
     // MARK: - Derived state
+
+    /// The URL currently eligible for an auto-attached link card, or nil.
+    /// Drives `.task(id: detectedURL)` — SwiftUI re-keys the task whenever
+    /// this changes, which gets us free debounce/cancel semantics.
+    ///
+    /// Filters NSDataDetector's broader catch (mailto:, tel:, file:) down
+    /// to http/https — sending an `external` embed with a `mailto:` URL
+    /// would card incorrectly. Suppresses URLs the user has dismissed via
+    /// Remove, and honors Bluesky's exclusive embed slot: when images are
+    /// attached, no card surfaces (the URL stays as a clickable facet).
+    private var detectedURL: URL? {
+        guard let url = URLDetector.firstURL(in: text) else { return nil }
+        guard let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https" else { return nil }
+        guard !dismissedURLs.contains(url) else { return nil }
+        guard attachments.isEmpty else { return nil }
+        return url
+    }
 
     private var remaining: Int {
         ComposeText.remaining(text)
@@ -319,11 +445,18 @@ public struct ComposeView: View {
              pixelWidth: $0.pixelWidth,
              pixelHeight: $0.pixelHeight)
         }
+        // Phase F: pass the loaded card through. APIClient enforces the
+        // exclusive-embed-slot rule (images win) and falls through to the
+        // external-only path when images is empty.
+        let card: ExternalLinkCard? = {
+            if case .loaded(let c) = linkState { return c }
+            return nil
+        }()
         editorFocused = false
         send = .sending
         Task {
             do {
-                let uri = try await api.createPost(text: body, images: pack)
+                let uri = try await api.createPost(text: body, images: pack, external: card)
                 send = .sent(uri: uri)
             } catch {
                 send = .failed(message: error.localizedDescription)
@@ -427,6 +560,64 @@ private struct AttachmentRow: View {
         }
         #else
         Rectangle().fill(.thinMaterial)
+        #endif
+    }
+}
+
+// MARK: - LinkCardRow
+
+/// One row in the Link section: thumbnail + title/description/host +
+/// remove button. Visual sibling of AttachmentRow — same 72pt
+/// thumbnail, same trailing destructive button, same vertical padding.
+/// File-private because it's tightly coupled to ComposeView's
+/// `dismissedURLs` set via the `onRemove` callback.
+private struct LinkCardRow: View {
+    let card: ExternalLinkCard
+    let onRemove: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 12) {
+                thumbnail
+                    .frame(width: 72, height: 72)
+                    .clipShape(.rect(cornerRadius: 8))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(card.title)
+                        .font(.callout.weight(.semibold))
+                        .lineLimit(2)
+                    Text(card.description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                    Text(card.url.host ?? card.url.absoluteString)
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+            }
+            Button(role: .destructive, action: onRemove) {
+                Label("Remove link card", systemImage: "trash")
+                    .font(.caption)
+            }
+            .buttonStyle(.borderless)
+        }
+        .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private var thumbnail: some View {
+        #if canImport(UIKit)
+        if let data = card.thumbnailJPEG, let img = UIImage(data: data) {
+            Image(uiImage: img).resizable().scaledToFill()
+        } else {
+            Rectangle().fill(.thinMaterial).overlay {
+                Image(systemName: "link").foregroundStyle(.secondary)
+            }
+        }
+        #else
+        Rectangle().fill(.thinMaterial).overlay {
+            Image(systemName: "link").foregroundStyle(.secondary)
+        }
         #endif
     }
 }
