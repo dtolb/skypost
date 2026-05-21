@@ -188,11 +188,7 @@ public struct ComposeView: View {
                 // Debounce so we don't fetch on every keystroke. If the
                 // user keeps typing within 600ms, the task is cancelled
                 // and we never reach the resolver.
-                do {
-                    try await Task.sleep(for: .milliseconds(600))
-                } catch {
-                    return
-                }
+                try? await Task.sleep(for: .milliseconds(600))
                 guard !Task.isCancelled else { return }
                 guard let resolver else {
                     // No resolver injected (previews / tests). Surface
@@ -320,11 +316,27 @@ public struct ComposeView: View {
             // around the surrounding Section. Kept for exhaustiveness.
             EmptyView()
         case .loading(let url):
+            // Escape hatch: if the resolver hangs (slow network, pre-timeout),
+            // the user can dismiss. The button inserts the URL into
+            // `dismissedURLs`, which `detectedURL` checks — that makes
+            // `detectedURL` return nil, re-keys `.task(id: detectedURL)`,
+            // and SwiftUI cancels the in-flight resolver task implicitly.
             HStack {
                 ProgressView()
                 Text(url.host ?? "Loading preview…")
                     .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+                Spacer()
+                Button("Remove") {
+                    dismissedURLs.insert(url)
+                    linkState = .idle
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Remove link preview")
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Loading link preview for \(url.host ?? url.absoluteString)")
+            .accessibilityAddTraits(.updatesFrequently)
         case .loaded(let card):
             LinkCardRow(card: card, onRemove: {
                 dismissedURLs.insert(card.url)
@@ -595,6 +607,12 @@ private struct LinkCardRow: View {
                         .lineLimit(1)
                 }
             }
+            // Combine the preview elements into one VoiceOver focus so the
+            // user doesn't have to swipe through title / description / host
+            // serially. Scoped to the inner HStack so the destructive
+            // Remove button below stays separately focusable.
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Link preview: \(card.title)\(card.description.isEmpty ? "" : ". \(card.description)"). \(card.url.host ?? "")")
             Button(role: .destructive, action: onRemove) {
                 Label("Remove link card", systemImage: "trash")
                     .font(.caption)
