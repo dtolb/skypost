@@ -11,19 +11,29 @@
 import SwiftUI
 import SwiftData
 import Auth
+import Bluesky
 import Templates
 
 public struct BlueSkyTemplatesApp: App {
-    @State private var auth = AuthService()
+
+    // One APIClient for the whole process — both the AuthService and the
+    // HomeView post path share it (same Keychain UUID, same session state).
+    @State private var api = APIClient()
+    @State private var auth: AuthService
     @State private var router = AppRouter()
 
-    public init() {}
+    public init() {
+        let api = APIClient()
+        self._api = State(initialValue: api)
+        self._auth = State(initialValue: AuthService(provider: AppPasswordAuth(api: api)))
+    }
 
     public var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(auth)
                 .environment(router)
+                .environment(\.apiClient, api)
         }
         .modelContainer(for: Template.self)
     }
