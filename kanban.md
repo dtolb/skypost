@@ -41,11 +41,20 @@ reviewer → code-quality reviewer → mark done.
 ## Phase C — Compose (images)
 
 ### TODO
-- **C2** — `ComposeAttachment` + `isSubmittable(text:attachments:)` + 6 tests
-- **C3** — `APIClient.createPost(text:images:)` + ComposeView PhotosPicker / thumbnail / alt-text wiring
+- _none — C3 is the last Phase C task before the wrap-up review._
 
 ### In Progress
-- **C1** — `ImageProcessor` ImageIO-based resize + JPEG encode + 6 TDD tests
+- **C3** — `APIClient.createPost(text:images:)` + ComposeView PhotosPicker / thumbnail / alt-text wiring
+
+### Done
+- ✅ **C1** — `ImageProcessor` ImageIO resize + JPEG encode (commit `e4ff475`; 46/46 tests). Cross-platform: tests run on macOS via `swift test`.
+- ✅ **C2** — `ComposeAttachment` + `isSubmittable(text:attachments:)` + 6 tests (commit `1fa71f7`; 52/52 tests passing)
+
+### Carry-forward nits (extend Phase D list)
+- `ImageProcessor.swift:62` — `stride(from: 0.85, through: 0.30, by: -0.05)` can drift; an explicit qualities array would be bit-exact.
+- `ImageProcessor.swift:30-35` — algorithm comments could lead with WHY (zero-count `CGImageSource` is technically valid but unusable) instead of restating WHAT.
+- `ImageProcessor.swift:119` vs `ComposeTests.swift:131` — `CFString` vs `String`-keyed CGImageDestination dict style inconsistency between production and fixture.
+- `ComposeTests.swift:107` — `makeFixtureJPEG` could nest as a `static` on the suite struct for tighter scoping.
 
 ## Phase D / E — sketch
 
