@@ -29,13 +29,15 @@ settings:
     SWIFT_TREAT_WARNINGS_AS_ERRORS: NO
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     GENERATE_INFOPLIST_FILE: NO
-    # No signing for CI builds — Debug uses ad-hoc, no profile required
-    # for simulator. Dan can swap to a Team ID in the project UI when
-    # building to a device.
+    # Ad-hoc signing (`CODE_SIGN_IDENTITY = -`) is enough for simulator
+    # builds and headless CI; it requires no certificate or team and
+    # ensures the entitlements file is embedded so Keychain works.
+    # `CODE_SIGNING_ALLOWED: NO` would skip codesign entirely, which
+    # leaves the binary with empty entitlements and breaks SecItemAdd
+    # (-34018). Dan can swap to a Team ID in the project UI when building
+    # to a device.
     CODE_SIGN_STYLE: Automatic
     CODE_SIGN_IDENTITY: "-"
-    CODE_SIGNING_REQUIRED: NO
-    CODE_SIGNING_ALLOWED: NO
 
 targets:
   BlueSkyTemplates:
@@ -69,10 +71,21 @@ targets:
         PRODUCT_NAME: BlueSkyTemplates
         TARGETED_DEVICE_FAMILY: "1,2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        # No keychain-access-groups at v2 launch — sim builds fail with
-        # errSecMissingEntitlement (-34018) without a provisioned access
-        # group. Re-add and migrate keychain entries when a Share Extension
-        # or Widget lands (~30 lines: read-old / write-new / delete-old).
+        # Re-assert ad-hoc signing at the target level — Xcodegen defaults
+        # iOS application targets to `CODE_SIGN_IDENTITY = "iPhone Developer"`,
+        # which overrides the project-wide `"-"` and would require a real
+        # signing certificate. Pin it back to `-` so simulator and CI builds
+        # sign ad-hoc with no team or cert.
+        CODE_SIGN_IDENTITY: "-"
+        # Entitlements file ships a single keychain-access-group matching
+        # this bundle id. Without an entitlements file at all, simulator
+        # builds hit errSecMissingEntitlement (-34018) the first time
+        # ATProtoKit's AppleSecureKeychain calls SecItemAdd to persist the
+        # refresh token. The access group is *not* shared today; when a
+        # Share Extension or Widget lands, add their bundle ids to the
+        # array in BlueSkyTemplates.entitlements and run the keychain
+        # migration (~30 lines: read-old / write-new / delete-old).
+        CODE_SIGN_ENTITLEMENTS: BlueSkyTemplates.entitlements
         SWIFT_VERSION: "6.0"
     dependencies:
       - package: BlueSkyTemplates
