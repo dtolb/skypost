@@ -21,15 +21,22 @@
 - **P2** | `MailtoURLDoesNotAttachCard` — type `email me at foo@bar.com`. Expect NO link card. Verifies the F5 http/https-only filter on `detectedURL` (closes F1's deferred mailto/tel characterization).
 - **P3** | `LinkCardThumbnailAccessibility` — VoiceOver reads the card as one combined element ("Link preview: title. description. host") with the Remove button as a separately focusable control. Verifies the F5 a11y fix-pass.
 
-## Phase E — Templates → Composer hand-off
+## Phase E + G1 — Templates → Composer hand-off (post-refactor)
 
-- **P0** | `firstApplyAfterLaunchFillsComposer` — fresh launch, create a template, tap "Use Template" from the editor toolbar, verify Compose tab is selected AND `text` reads `body\n\n#tags`. Catches the lazy-tab-init race (commit `ac60d6b`).
-- **P0** | `firstApplyViaRowContextMenuFillsComposer` — same as above but via long-press → "Use this template". Same lazy-init race.
-- **P0** | `firstApplyViaLeadingSwipeFillsComposer` — same as above but via leading-swipe → "Use". Same lazy-init race.
-- **P1** | `applyTwiceInARowRefillsComposer` — apply a template, edit the composer text, re-apply same template → text REPLACES (not appends), tick monotonicity verified visually.
+> Phase G1 retired three of Phase E's apply affordances (editor toolbar button, leading swipe, "Use this template" context entry) and added the pinned Compose picker. Below reflects the post-G1 gesture surface.
+
+- **P0** | `firstApplyViaTemplatesRowTapFillsComposer` — fresh launch, create a template, tap the row in the Templates tab; verify Compose tab is selected AND `text` reads `body\n\n#tags`. Replaces the old per-affordance trio; row tap is now the sole apply path from the Templates tab.
+- **P0** | `firstApplyViaComposePickerFillsComposer` — fresh launch, create a template, switch to Compose (default on G1), tap the `Template ▾` Menu and pick the template; verify body fills. Catches lazy-init for the new picker path even though Compose is now the default tab.
+- **P0** | `composeIsDefaultTabOnColdLaunch` — fresh launch with at least one template existing; verify the bottom tab bar shows Compose selected, NOT Templates. (Locks in the G1 default-tab decision.)
+- **P0** | `pickerSelectingNoneClearsEditorAndPhotosPickerAndError` — type body, stage a PhotosPickerItem, force an attachment error banner (oversized image), then pick `None` from the Template Menu; verify text cleared, attachments cleared, picker selection cleared, error banner cleared.
+- **P1** | `pickerDisabledDuringInFlightSend` — start a slow send, verify the Template Menu is non-interactive until `.sent` (or `.failed`) lands. Locks in the G1 review-fix that prevents the picker from stomping `send=.idle` mid-flight via the Phase E ingest path.
+- **P1** | `applyTwiceInARowRefillsComposer` — apply a template (via picker or row tap), edit the composer text, re-apply the same template → text REPLACES (not appends). Tick monotonicity verified visually.
 - **P1** | `applyTemplateWithEmptyHashtagsOmitsTrailer` — template with no hashtags → composer body has no `\n\n` trailer.
-- **P1** | `applyTemplateFromEditorDismissesEditorAndSwitchesTab` — verify the toolbar Use Template path: editor sheet/push dismisses, tab flips to Compose.
-- **P2** | `applyUsesStoredNotUnsavedEditorState` — open template, edit `bodyText` without saving, tap Use Template; verify composer fills with the STORED `template.body`, NOT the unsaved edits. (Per the kanban-deferred UX decision; lock in current behavior until we revisit.)
+- **P1** | `trailingSwipeEditOnTemplatesRowOpensEditor` — trailing-swipe a row → tap Edit; verify editor pushes. Mirrors Mail-style swipe convention added in G1.
+- **P1** | `contextMenuEditOnTemplatesRowOpensEditor` — long-press a row → Edit; same expectation as the swipe path.
+- **P1** | `pickerSelectionPersistsAcrossApplierConsume` — after apply, the Template Menu label still shows the chosen title (not `None`). Verifies G1's transient-selection state-machine decision.
+- **P1** | `pickerSelectionResetsOnSuccessfulPost` — apply, send successfully, wait ~2s for auto-clear; verify the Template Menu label snaps back to `None`.
+- **P2** | `applyUsesStoredNotUnsavedEditorState` — Phase E behavior, still relevant for the Templates row-tap path: open template, edit `bodyText` in editor without saving, back out, then tap the row in the Templates list; verify Compose fills with the STORED `template.body`, NOT the unsaved edits. (Per the kanban-deferred UX decision.)
 
 ## Auth (Phase A → D)
 
@@ -45,7 +52,7 @@
 
 - **P1** | `emptyStateShowsContentUnavailableView` — no templates, expect "No templates yet" + plus button.
 - **P1** | `plusOpensSheetSaveAddsRow` — tap +, fill all three fields, Save; verify a row appears on the list with the right title/body/hashtags.
-- **P1** | `swipeTrailingDeletesRow` — leading-swipe is Use (Phase E), trailing-swipe is Delete; verify both don't collide.
+- **P1** | `swipeTrailingDeletesAndEditsRow` — trailing-swipe drawer holds both Delete (red, destructive, outermost) + Edit (accent-tinted, inboard) per G1; verify the ordering and that `allowsFullSwipe: false` prevents a fat-thumb full-swipe nuke. There is no leading swipe action after G1.
 - **P1** | `tapRowPushesEditorPrefilledWithStoredValues` — tap a row, verify editor opens with stored fields populated.
 - **P1** | `editAndSaveUpdatesRowAndTouchesUpdatedAt` — change body in editor, Save; verify row reflects new body and floats to top of the updatedAt-desc list (if another template exists).
 - **P1** | `cancelDiscardsChanges` — open editor, type edits, Cancel; verify row unchanged.

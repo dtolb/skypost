@@ -113,7 +113,7 @@ let package = Package(
         // ── Tests — one sanity test per target. ────────────────────────
         .testTarget(
             name: "ComposeTests",
-            dependencies: ["Compose"]
+            dependencies: ["Compose", "Templates"]
         ),
         .testTarget(
             name: "TemplatesTests",

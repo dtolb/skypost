@@ -1,6 +1,6 @@
 # Kanban — BlueSkyTemplates v2 implementation
 
-> **Handoff state — 2026-05-21:** Phases A → F shipped end-to-end. Phase F adds Open Graph link card embeds — type a URL, debounced fetch via Apple's LPMetadataProvider, preview in a LinkCardRow, send as a Bluesky `external` embed (manual record build to avoid the SDK's force-load gotcha §8.4 #6). 77/77 Swift Testing cases on Phase F tip (12 new across F1-F3; F4-F6 are UI lifecycle, covered by the deferred XCUITest backlog). Whole-phase reviewer ✅ APPROVED FOR MERGE. **Sim verification gap:** the Simulator app's device window is currently headless on this Mac — AppleScript reports 0 windows for the Simulator process even though the app is running (visible via `simctl io screenshot`). Dan can drive manual verification when at the machine.
+> **Handoff state — 2026-05-21:** Phases A → G1 shipped end-to-end. Phase G1 is the Compose-first UX refactor — Compose is now the default tab, a pinned `Template: [None ▾]` Menu lives at the top of the composer, the Templates list row-tap applies (Edit moves to trailing swipe + context menu), and the share-icon hack in the editor toolbar is retired. 82/82 Swift Testing cases on Phase G1 tip (5 new in `TemplatePickerOptionTests`). UI lifecycle still covered by the deferred XCUITest backlog. Sim verification deferred per the Phase F headless-Simulator gap.
 
 **Current branch:** `feature/phase-f-external-link-card` (tip `d1c7158`)
 **Open MRs:**
@@ -123,10 +123,29 @@ reviewer → code-quality reviewer → mark done.
 - F5 — `if case .idle = linkState { } else { Section("Link") { ... } }` — empty-then-branch reads inverted vs convention; behavior correct.
 - F5 — `submit()` IIFE `let card: ExternalLinkCard? = { ... }()` reads dense; `if case .loaded(let c) = linkState { card = c } else { card = nil }` would be cleaner.
 
+## Phase G1 — Compose-first UX with in-place template picker ✅
+
+**Spec:** [`docs/specs/2026-05-21-compose-template-picker-design.md`](docs/specs/2026-05-21-compose-template-picker-design.md)
+**Plan:** [`docs/plans/2026-05-21-phase-g1-compose-template-picker.md`](docs/plans/2026-05-21-phase-g1-compose-template-picker.md)
+
+### Done
+- ✅ **G1.1** — `TemplatePickerOption` value type + 5 tests (commit `a8142c8`; 82/82 tests passing)
+- ✅ **G1.2** — `TemplatePickerSection` wired into ComposeView (pinned Menu row, REPLACE semantics, picker reset on auto-clear) (commits `f433c5f` + `b0a4565` review fixes; 82/82 tests, xcodebuild green)
+- ✅ **G1.3** — Default tab flipped to `.compose` in SignedInView (commit `d662ef5`; 82/82 tests, xcodebuild green)
+- ✅ **G1.4** — TemplateListView row → Apply; trailing swipe Edit + Delete; leading swipe + Use context-menu removed; `.onDelete` replaced with explicit swipe Delete (commit `17d8bef`; 82/82 tests, xcodebuild green)
+- ✅ **G1.5** — Editor "Use Template" toolbar items + TemplateApplier env dep removed (commit `9cd97fe`; 82/82 tests, xcodebuild green)
+
+### Deferred-cosmetic nits (Phase G1)
+- G1.1 nit — `TemplatePickerOption.id` returns `AnyHashable`; `var id: Self { self }` would drop the boxing. Cosmetic; defer.
+- G1.2 nit — `#Preview("Compose — idle")` does NOT inject a populated `.modelContainer(for: Template.self)`, so the picker label always renders "None" with an empty Menu in previews. Add a `#Preview("Compose — with templates")` populated mirror when next touching the file.
+- G1.4 nit — `delete(_ template:)` in `TemplateListView` does not nil out `navigationTarget` if it equals the deleted template. Narrow UI race (would require deletion while editor is pushed); one-line defensive guard recommended.
+- G1.4 nit — empty-state `#Preview("Templates — empty")` does not inject `TemplateApplier`; benign because `ContentUnavailableView` has no apply path, but pattern-inconsistent with the populated preview.
+- G1.5 nit — none surfaced; pure deletion change.
+
 ## Phase G — sketch (post-Phase-F)
 
 - **OAuth migration** (deferred until architecture §7.3 trigger fires).
 - **Deferred-cleanup track**: plan #8 (App struct rename), plan #10 (@MainActor consistency), plan #12 (Keychain duplicate), plan #13 (app icon), plan #15 (DesignSystem semantic colors), ComposeView cosmetic nits (lines 75-76 ternary, `copy(_:)` missing `#else`), E2/E3/E4 cosmetic nits (this file's "Deferred-cosmetic nits (Phase E)"). Nuke LazyImage when a feed/CDN-URL surface arrives.
 - **Feature track candidates**: reply / quote support, external link card embed, Save draft as template (round-trip of Phase E).
-- **UI test harness**: backlog at [`docs/ui-test-backlog.md`](docs/ui-test-backlog.md); plan at [`docs/plans/2026-05-21-ui-test-harness.md`](docs/plans/2026-05-21-ui-test-harness.md). Deferred per Dan's "features for a while" directive; pick up when backlog crosses ~10 P0/P1 items or after 2-3 more feature phases.
+- **UI test harness**: backlog at [`docs/ui-test-backlog.md`](docs/ui-test-backlog.md); plan at [`docs/plans/2026-05-21-ui-test-harness.md`](docs/plans/2026-05-21-ui-test-harness.md). Deferred per Dan's "features for a while" directive; pick up when backlog crosses ~10 P0/P1 items or after 2-3 more feature phases. **Pre-pickup task:** refresh the harness plan for the post-G1 gesture surface — drop `tapUseFromContextMenu`, the "Use" swipe-button accessibilityIdentifier sweep, and the Use-Template toolbar references (plan §lines 115/119/170); add picker-Menu page-object helpers + Compose-default-tab fixture.
 

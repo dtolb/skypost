@@ -21,6 +21,7 @@
 // clickable facet via ATFacetParser server-side.
 
 import SwiftUI
+import SwiftData
 import Bluesky
 import Models
 import Templates
@@ -43,6 +44,17 @@ public struct ComposeView: View {
     @Environment(\.externalLinkResolver) private var resolver: (any ExternalLinkResolver)?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(TemplateApplier.self) private var applier: TemplateApplier?
+
+    @Query(sort: \Template.updatedAt, order: .reverse) private var templates: [Template]
+
+    // Picker selection is TRANSIENT (not derived from applier.pending) —
+    // once Composer ingests an apply, applier.consume() nils pending out,
+    // but the picker label should keep showing "Daily Fuji" until the
+    // user explicitly picks something else (including "None"). nil = None.
+    //
+    // Named `templatePickerSelection` (not `pickerSelection`) to avoid
+    // colliding with the existing PhotosPicker selection below.
+    @State private var templatePickerSelection: PersistentIdentifier?
 
     @State private var text: String = ""
     @State private var attachments: [ComposeAttachment] = []
@@ -87,6 +99,15 @@ public struct ComposeView: View {
     public var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    TemplatePickerLabel(
+                        selection: templatePickerSelection,
+                        templates: templates,
+                        onSelect: handlePickerSelection(_:)
+                    )
+                    .disabled(isSending)
+                }
+
                 Section {
                     TextField("What's on your mind?", text: $text, axis: .vertical)
                         .font(.body)
@@ -174,6 +195,7 @@ public struct ComposeView: View {
                 attachments = []
                 linkState = .idle
                 dismissedURLs.removeAll()
+                templatePickerSelection = nil
                 send = .idle
             }
             // Phase F link-card flow: re-fires whenever `detectedURL`
@@ -214,15 +236,18 @@ public struct ComposeView: View {
             // half-typed prose into the merge is worse UX than starting
             // fresh).
             //
-            // `initial: true` covers the lazy-tab-init case: when the user's
-            // first "Use this template" tap is the same event that
+            // `initial: true` covers the lazy-tab-init case: when an apply
+            // from the Templates tab (row tap) is the same event that
             // materializes ComposeView (TabView with `selection:` binding
             // lazy-instantiates the non-selected tab child), the inserted
             // view captures the already-changed tick as its baseline and a
             // vanilla `.onChange` never fires. `initial: true` runs the
             // closure on first attachment with the current value, so the
             // FIRST apply ingests correctly. The guard handles "no pending
-            // at appearance".
+            // at appearance". Less relevant post-G1 (Compose is the default
+            // tab), but still load-bearing for cold-launch-on-Templates-tab
+            // flows and for in-Compose picker selections that race
+            // ComposeView's first body evaluation.
             .onChange(of: applier?.pending?.tick, initial: true) { _, newTick in
                 guard let newTick,
                       let pending = applier?.pending,
@@ -438,6 +463,43 @@ public struct ComposeView: View {
 
     // MARK: - Actions
 
+    // MARK: Template picker
+
+    private func handlePickerSelection(_ option: TemplatePickerOption) {
+        switch option {
+        case .none:
+            templatePickerSelection = nil
+            resetDraft()
+        case .template(let pid, _):
+            templatePickerSelection = pid
+            if let template = templates.first(where: { $0.persistentModelID == pid }) {
+                applier?.apply(template)
+                // applier.apply → SignedInView's .onChange flips tab if needed
+                // (no-op when already on Compose) → ComposeView's own
+                // .onChange(of: applier?.pending?.tick) ingests body/hashtags.
+                // Nothing else to do here.
+            }
+        }
+    }
+
+    /// Resets the editor's local state to the same shape the auto-clear
+    /// path uses after a successful post. Called when the user picks
+    /// "None" from the template picker — explicit user intent to start
+    /// blank.
+    private func resetDraft() {
+        text = ""
+        attachments = []
+        linkState = .idle
+        dismissedURLs.removeAll()
+        send = .idle
+        #if canImport(PhotosUI)
+        pickerSelection.removeAll()
+        attachmentError = nil
+        #endif
+    }
+
+    // MARK: Send
+
     // Named `submit()` rather than `send()` because the @State property is
     // also `send` — Swift's same-namespace rule for stored property vs
     // zero-arg method would collide. Matches LoginView's verb choice.
@@ -637,6 +699,45 @@ private struct LinkCardRow: View {
             Image(systemName: "link").foregroundStyle(.secondary)
         }
         #endif
+    }
+}
+
+// MARK: - TemplatePickerLabel
+
+/// Pinned picker row — renders as `Template: [Title ▾]` with a Menu
+/// listing "None (blank)" + every saved template. Stateless: parent
+/// owns `selection`, this view just renders + forwards taps.
+private struct TemplatePickerLabel: View {
+    let selection: PersistentIdentifier?
+    let templates: [Template]
+    let onSelect: (TemplatePickerOption) -> Void
+
+    var body: some View {
+        Menu {
+            ForEach(TemplatePickerOption.options(from: templates)) { option in
+                Button(option.menuTitle) { onSelect(option) }
+            }
+        } label: {
+            HStack {
+                Text("Template")
+                    .foregroundStyle(.primary)
+                Spacer()
+                Text(currentTitle)
+                    .foregroundStyle(.secondary)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .contentShape(.rect)
+        }
+        .accessibilityLabel("Template picker, currently \(currentTitle)")
+    }
+
+    private var currentTitle: String {
+        guard let selection,
+              let t = templates.first(where: { $0.persistentModelID == selection })
+        else { return "None" }
+        return t.title
     }
 }
 
