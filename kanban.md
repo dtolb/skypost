@@ -1,14 +1,14 @@
 # Kanban — BlueSkyTemplates v2 implementation
 
-> **Handoff state — 2026-05-21:** Phases A → E shipped end-to-end. Phase F (external link card embed) in flight. 65/65 Swift Testing cases on Phase E tip; Phase F adds 12 more pure-logic tests across F1+F2. UI test backlog + XCUITest harness plan written and deferred per Dan's "features for a while" directive. Manual cliclick+osascript Sim driving stays available for orchestrator-driven verification.
+> **Handoff state — 2026-05-21:** Phases A → F shipped end-to-end. Phase F adds Open Graph link card embeds — type a URL, debounced fetch via Apple's LPMetadataProvider, preview in a LinkCardRow, send as a Bluesky `external` embed (manual record build to avoid the SDK's force-load gotcha §8.4 #6). 77/77 Swift Testing cases on Phase F tip (12 new across F1-F3; F4-F6 are UI lifecycle, covered by the deferred XCUITest backlog). Whole-phase reviewer ✅ APPROVED FOR MERGE. **Sim verification gap:** the Simulator app's device window is currently headless on this Mac — AppleScript reports 0 windows for the Simulator process even though the app is running (visible via `simctl io screenshot`). Dan can drive manual verification when at the machine.
 
-**Current branch:** `feature/phase-f-external-link-card` (off Phase E tip `aeabedd`)
+**Current branch:** `feature/phase-f-external-link-card` (tip `d1c7158`)
 **Open MRs:**
 - A+B: <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/2>
 - C (stacked on A+B): <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/3>
 - D (stacked on C): <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/4>
 - E (stacked on D): <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/5>
-- F (stacked on E): _not yet opened — in development_
+- F (stacked on E): <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/6>
 
 **Per-phase plans:**
 - [Phase A — Templates CRUD](docs/plans/2026-05-21-phase-a-templates-crud.md)
@@ -101,10 +101,10 @@ reviewer → code-quality reviewer → mark done.
 - E3 nit — `TemplateEditorView` Use Template button uses the STORED `template.body/hashtags`, not the user's unsaved `bodyText/hashtagsRaw` `@State`. If user edits then taps Use Template, edits are ignored. Per-plan literal behavior; revisit with explicit UX call (auto-save? transient apply? gate behind `canSave`?).
 - E4 nit — `ComposeView.onChange(of: applier?.pending?.tick)` re-fires once after `applier?.consume()` (pending: n → nil); guard handles it cleanly but a future reader has to derive that. One-line `// consume() below re-triggers; guard short-circuits` would document it.
 
-## Phase F — External link card embed (in flight)
+## Phase F — External link card embed ✅ (READY TO MERGE per final review)
 
 ### In Progress
-- **F6** — App composition wiring + final review + Sim verification
+- _none — Sim verification deferred to Dan (Simulator headless on this Mac); MR !6 opened._
 
 ### Done
 - ✅ **F1** — `URLDetector` helper via `NSDataDetector` + 6 tests (commit `0ed2949`; 71/71 tests passing)
@@ -112,6 +112,7 @@ reviewer → code-quality reviewer → mark done.
 - ✅ **F3** — `LiveExternalLinkResolver` via `LPMetadataProvider` + `ImageProcessor` relocate prereq + helper tests (commits `288dd42` relocate + `c82fcbc` resolver + `cdc9ddd` review fixes; 77/77 macOS + 80/80 iOS gated, xcodebuild green)
 - ✅ **F4** — `APIClient.createPost(text:external:)` overload (Option A — manual record build via `uploadBlob` + `createRecord`) + images-precedence (commits `2463591` + `b9eb0ef` review fixes; 77/77 tests passing, xcodebuild green)
 - ✅ **F5** — ComposeView wiring + card preview UI (debounced `.task(id: detectedURL)`) + a11y + loading-escape (commits `8232fcf` + `e4d5749` review fixes; 77/77 tests passing, xcodebuild green)
+- ✅ **F6** — App composition wiring (commit `04836d6`); whole-phase final reviewer ✅ APPROVED FOR MERGE; doc follow-ups (UI test backlog entries + carry-forward nits) at commit `d1c7158`. Sim verification blocked by headless Simulator window on this Mac — deferred to Dan's next session.
 
 ### Deferred nits (Phase F)
 - F1 — characterization test for `mailto:` / `tel:` schemes. The runtime fix landed in F5 (`ComposeView.detectedURL` filters to http/https only); kanban entry remains as a *unit-test* deferral.
