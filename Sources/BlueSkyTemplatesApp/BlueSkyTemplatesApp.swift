@@ -13,6 +13,7 @@ import SwiftData
 import Auth
 import Bluesky
 import Compose
+import DesignSystem
 import Templates
 
 public struct BlueSkyTemplatesApp: App {
@@ -55,6 +56,7 @@ public struct BlueSkyTemplatesApp: App {
                 #if canImport(LinkPresentation) && canImport(UIKit)
                 .environment(\.externalLinkResolver, linkResolver)
                 #endif
+                .tint(BrandColor.tint)
         }
         .modelContainer(for: Template.self)
     }
