@@ -10,6 +10,7 @@ import SwiftData
 public struct TemplateListView: View {
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(TemplateApplier.self) private var applier: TemplateApplier?
     @Query(sort: \Template.updatedAt, order: .reverse) private var templates: [Template]
 
     @State private var newSheetPresented: Bool = false
@@ -30,6 +31,22 @@ public struct TemplateListView: View {
                         ForEach(templates) { template in
                             NavigationLink(value: template) {
                                 TemplateRow(template: template)
+                            }
+                            .contextMenu {
+                                Button {
+                                    applier?.apply(template)
+                                } label: {
+                                    Label("Use this template", systemImage: "square.and.arrow.up")
+                                }
+                            }
+                            // Leading edge — keeps clear of the trailing-edge destructive swipe from `.onDelete` below.
+                            .swipeActions(edge: .leading) {
+                                Button {
+                                    applier?.apply(template)
+                                } label: {
+                                    Label("Use", systemImage: "square.and.arrow.up")
+                                }
+                                .tint(.accentColor)
                             }
                         }
                         .onDelete { offsets in delete(at: offsets) }
@@ -95,6 +112,7 @@ private struct TemplateRow: View {
 #Preview("Templates — populated") {
     TemplateListView()
         .modelContainer(makePreviewContainer(populated: true))
+        .environment(TemplateApplier())
 }
 
 #Preview("Templates — empty") {

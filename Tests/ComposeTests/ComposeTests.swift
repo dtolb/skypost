@@ -50,6 +50,40 @@ struct ComposeTextTests {
     }
 }
 
+@Suite("ComposeText template application")
+struct ComposeTextTemplateApplicationTests {
+
+    @Test
+    func emptyBodyAndEmptyHashtagsReturnsEmptyString() {
+        #expect(ComposeText.applyTemplate(body: "", hashtags: []) == "")
+    }
+
+    @Test
+    func bodyOnlyReturnsBodyUnchanged() {
+        #expect(ComposeText.applyTemplate(body: "hello", hashtags: []) == "hello")
+    }
+
+    @Test
+    func hashtagsOnlyReturnsSpaceJoinedHashTokens() {
+        #expect(ComposeText.applyTemplate(body: "", hashtags: ["a", "b"]) == "#a #b")
+    }
+
+    @Test
+    func bodyAndHashtagsSeparatedByTwoNewlines() {
+        #expect(ComposeText.applyTemplate(body: "hello", hashtags: ["a", "b"]) == "hello\n\n#a #b")
+    }
+
+    @Test
+    func hashtagsArePrefixedWithHashEvenIfModelStripped() {
+        #expect(ComposeText.applyTemplate(body: "x", hashtags: ["nohash"]) == "x\n\n#nohash")
+    }
+
+    @Test
+    func singleHashtagWorks() {
+        #expect(ComposeText.applyTemplate(body: "x", hashtags: ["only"]) == "x\n\n#only")
+    }
+}
+
 @Suite("ImageProcessor JPEG resize")
 struct ImageProcessorTests {
 

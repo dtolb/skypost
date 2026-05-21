@@ -987,25 +987,13 @@ or a Share Extension.
 
 ## 11. Phased plan
 
-1. **Scaffold** — New `v2/` directory (or fresh repo), SPM workspace,
-   five external deps wired, CI pointing at the new path. ATProtoKit
-   "hello world" that logs in via app password and posts "hello from v2."
-2. **Templates port** — `@Model Template`, SwiftData container, CRUD UI,
-   one-time UserDefaults→SwiftData migration on first launch.
-3. **Auth** — `AuthProvider` protocol + `AppPasswordAuth` impl, ATProtoKit
-   `AppleSecureKeychain` for token storage, `AsyncStream`-driven auth
-   lifecycle, login screen.
-4. **Compose** — `ATProtoBluesky.createPostRecord` integration with
-   facets (auto-parsed by ATProtoKit), per-image alt text input, 300-
-   grapheme counter, language tag, aspect-ratio embed.
-5. **Polish** — Pow effects (post-sent spray, error shake, like jump),
-   reduce-motion gate, LazyImage via Nuke for any preview thumbnails.
-6. **Tests** — Swift Testing target: facet parsing pinning, template
-   round-trip, `AuthProvider` mock, state-enum transitions. Switch CI
-   from `xcodebuild build` to `xcodebuild test` per the existing TODO.
-7. **OAuth migration** — when the trigger fires (§7.3): implement
-   `OAuthAuth`, host `client-metadata.json`, register URL scheme, swap
-   in the composition root.
+1. ✅ **Scaffold** — done. SPM workspace, five external deps wired, CI on `xcode` runner emitting JUnit. ATProtoKit hello-world post path proved out (retired in Phase D1).
+2. ✅ **Templates port** — done (Phase A, MR !2). `@Model Template`, SwiftData CRUD UI (list / sheet-presented new / push-presented edit / swipe delete), hashtag parser. v1 UserDefaults→SwiftData migration **skipped** (no v1 users on this device).
+3. ✅ **Auth** — done. `AuthProvider` protocol + `AppPasswordAuth`, ATProtoKit `AppleSecureKeychain`, login screen with closed `AuthFailureReason` mapping, `defer` + explicit `catch is CancellationError` in `restore()` (Phase D1).
+4. ✅ **Compose** — done. Text-only composer (Phase B, MR !2) with 300-grapheme counter and four-state SendState machine; image attachments (Phase C, MR !3) via PhotosPicker + ImageProcessor (ImageIO-based, ≤1 MB JPEG) + per-image required alt text + aspect-ratio embed. Auto-facets via ATProtoKit per §8.3.
+5. ✅ **Polish** — done (Phase D, MR !4). Pow send-spray + error-shake with `accessibilityReduceMotion` gates + paired haptics. `Nuke` LazyImage **deferred** until a CDN-URL surface (e.g. feed) arrives.
+6. ✅ **Tests + CI** — Swift Testing throughout (53 cases across 10 suites as of Phase D). CI already converted to `xcodebuild test` via `swift test --xunit-output` on pipeline #143.
+7. ⏸ **OAuth migration** — deferred until §7.3 trigger fires.
 
 ---
 

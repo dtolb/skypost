@@ -13,6 +13,7 @@
 
 import SwiftUI
 import Bluesky
+import Templates
 
 #if canImport(Pow)
 import Pow
@@ -30,6 +31,7 @@ public struct ComposeView: View {
 
     @Environment(\.apiClient) private var api: APIClient?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(TemplateApplier.self) private var applier: TemplateApplier?
 
     @State private var text: String = ""
     @State private var attachments: [ComposeAttachment] = []
@@ -134,6 +136,33 @@ public struct ComposeView: View {
                 text = ""
                 attachments = []
                 send = .idle
+            }
+            // Phase E hand-off: when a template is applied from the Templates
+            // tab, ingest its body + hashtags wholesale (architecture §6.1 +
+            // Phase E plan decision: REPLACE, not append — template
+            // application is an explicit user-driven action; carrying
+            // half-typed prose into the merge is worse UX than starting
+            // fresh).
+            //
+            // `initial: true` covers the lazy-tab-init case: when the user's
+            // first "Use this template" tap is the same event that
+            // materializes ComposeView (TabView with `selection:` binding
+            // lazy-instantiates the non-selected tab child), the inserted
+            // view captures the already-changed tick as its baseline and a
+            // vanilla `.onChange` never fires. `initial: true` runs the
+            // closure on first attachment with the current value, so the
+            // FIRST apply ingests correctly. The guard handles "no pending
+            // at appearance".
+            .onChange(of: applier?.pending?.tick, initial: true) { _, newTick in
+                guard let newTick,
+                      let pending = applier?.pending,
+                      pending.tick == newTick
+                else { return }
+                text = ComposeText.applyTemplate(body: pending.body, hashtags: pending.hashtags)
+                attachments = []
+                send = .idle
+                applier?.consume()
+                editorFocused = true
             }
             #if canImport(PhotosUI)
             // PhotosPickerItems land here async; the picker itself can't host
