@@ -87,6 +87,11 @@ public final class AuthService {
             } else {
                 state = .signedOut
             }
+        } catch is CancellationError {
+            // .task was cancelled — view disappeared or the parent re-fired.
+            // Not a user-visible error; land at .signedOut so the next .task
+            // can retry cleanly.
+            state = .signedOut
         } catch {
             Log.auth.error("Restore failed: \(error.localizedDescription, privacy: .public)")
             state = .error(error, source: .restore)

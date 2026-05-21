@@ -251,6 +251,25 @@ struct AuthServiceStateTests {
         }
         #expect(error is WeirdError)
     }
+
+    @Test
+    @MainActor
+    func restoreCancellationLandsSignedOut() async {
+        // A .task cancellation mid-restore should NOT surface as a red
+        // error banner — it's a routine view-lifecycle event. Pin the
+        // contract: provider throws CancellationError → AuthService lands
+        // at .signedOut, not .error.
+        let provider = MockAuthProvider(
+            sessionOutcome: .success(sampleSession),
+            restoreOutcome: .failure(CancellationError())
+        )
+        let svc = AuthService(provider: provider)
+        await svc.restore()
+        guard case .signedOut = svc.state else {
+            Issue.record("Expected .signedOut after CancellationError, got \(svc.state)")
+            return
+        }
+    }
 }
 
 // MARK: - SessionInfo Codable round-trip
