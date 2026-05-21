@@ -1,10 +1,11 @@
 # Kanban — BlueSkyTemplates v2 implementation
 
-**Current phase:** Phase C — Compose (images) — stacked on `feature/compose-text`
-**Branch:** `feature/compose-images` (off `feature/compose-text`)
-**Plan:** [`docs/plans/2026-05-21-phase-c-compose-images.md`](docs/plans/2026-05-21-phase-c-compose-images.md)
-**Prior phase plans (merged or pending merge):** [`docs/plans/2026-05-21-phase-a-templates-crud.md`](docs/plans/2026-05-21-phase-a-templates-crud.md), [`docs/plans/2026-05-21-phase-b-compose-text.md`](docs/plans/2026-05-21-phase-b-compose-text.md)
-**Open MR for A+B combined:** <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/2>
+**Current phase:** Phase D — Polish + Pow effects — stacked on `feature/compose-images`
+**Branch:** `feature/phase-d-polish`
+**Plan:** [`docs/plans/2026-05-21-phase-d-polish.md`](docs/plans/2026-05-21-phase-d-polish.md)
+**Prior phase plans (in MRs):** [`docs/plans/2026-05-21-phase-a-templates-crud.md`](docs/plans/2026-05-21-phase-a-templates-crud.md), [`docs/plans/2026-05-21-phase-b-compose-text.md`](docs/plans/2026-05-21-phase-b-compose-text.md), [`docs/plans/2026-05-21-phase-c-compose-images.md`](docs/plans/2026-05-21-phase-c-compose-images.md)
+**Open MR A+B:** <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/2>
+**Open MR C (stacked on A+B):** <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/3>
 
 Orchestrator is the main session; implementers are fresh `swift-coder`
 (Opus 4.7) subagents per task. Each task gets: implementer → spec-compliance
@@ -56,8 +57,17 @@ reviewer → code-quality reviewer → mark done.
 - `ImageProcessor.swift:119` vs `ComposeTests.swift:131` — `CFString` vs `String`-keyed CGImageDestination dict style inconsistency between production and fixture.
 - `ComposeTests.swift:107` — `makeFixtureJPEG` could nest as a `static` on the suite struct for tighter scoping.
 
-## Phase D / E — sketch
+## Phase D — Polish + Pow effects
 
-- **Phase D — Polish + tests + minor cleanups** (architecture §11 steps 5–6) — Pow effects with reduce-motion gates, Nuke LazyImage for previews, all carry-forward nits above, retire `postHelloWorld()`, remaining plan-file unchecked items, minor items 8/10/12/13/14/15/16/17 from `docs/plans/2026-05-20-review-fixes.md`.
+### TODO
+- **D2** — strip placeholder deps from `Package.swift` (plan #14)
+- **D3** — Pow effects (send spray + error shake) with reduce-motion gates (architecture §11 step 5)
+
+### In Progress
+- **D1** — Polish sweep (13 nit fixes + `postHelloWorld()` retirement + plan #16 + plan #17)
+
+## Phase E — sketch
+
 - **Phase E — OAuth migration** (deferred until §7.3 trigger fires).
+- **Deferred from Phase D**: plan #8 (App struct rename), plan #10 (@MainActor consistency), plan #12 (Keychain duplicate), plan #13 (app icon), plan #15 (DesignSystem semantic colors). Nuke LazyImage when a feed/CDN-URL surface arrives.
 
