@@ -19,7 +19,7 @@ public struct RootView: View {
                 // inline error row from `auth.state`.
                 LoginView()
             case .signedIn(let session):
-                HomeView(session: session)
+                SignedInView(session: session)
             case .error(let error, source: .restore):
                 // Cold-launch / session-restore failures escalate to a
                 // full-screen retry surface — there's no user input to

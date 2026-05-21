@@ -22,4 +22,9 @@ public final class Template {
         self.hashtags = hashtags
         self.updatedAt = .now
     }
+
+    /// Bumps updatedAt so the template floats to the top of the updatedAt-desc list.
+    public func touch() {
+        self.updatedAt = .now
+    }
 }

@@ -66,9 +66,9 @@ Fixers run sequentially (parallel `swift build` would race the shared `.build/` 
 ## Minor — tracked, defer to follow-up dispatches
 
 - [ ] **8.** `BlueSkyTemplatesApp.swift` struct name shadows the containing module name. Rename the struct (`AppRoot` / `BSKApp` / `Application`) to disambiguate. Trivial.
-- [ ] **9.** `EnvironmentKeys.swift` should live in `Sources/Bluesky/` (co-locate type with its environment key). Move the file once the API has stabilized.
+- [x] **9.** `EnvironmentKeys.swift` should live in `Sources/Bluesky/` (co-locate type with its environment key). Move the file once the API has stabilized. — _landed `1b75641` on `feature/compose-text` as a side effect of Phase B2 (Compose module needed read access)._
 - [ ] **10.** `@MainActor` annotation inconsistency under main-actor-by-default isolation. Either drop on `AuthService` + `AppRouter`, or document why they're kept.
-- [ ] **11.** `AuthService.init()` convenience constructor smuggles a third `APIClient`. Delete the convenience init; let the composition root own wiring.
+- [x] **11.** `AuthService.init()` convenience constructor smuggles a third `APIClient`. Delete the convenience init; let the composition root own wiring. — _landed `007db2a` on `feature/templates-crud` (Phase A5)._
 - [ ] **12.** `Sources/AppLogging/Keychain.swift:26-27` throws on `errSecDuplicateItem` from `SecItemAdd`. Address when the wrapper actually gets used (DPoP / Share Extension).
 - [ ] **13.** Asset catalog ships single 1024×1024 icon — App Store will reject. Defer to spec §11 step 5 polish.
 - [ ] **14.** `DesignSystem` / `Compose` / `Templates` placeholder targets pull Pow + MarkdownUI + Nuke into the build graph for 10 lines of code. Strip product deps until actually used.

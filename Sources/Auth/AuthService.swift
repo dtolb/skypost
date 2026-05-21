@@ -48,12 +48,6 @@ public final class AuthService {
         self.provider = provider
     }
 
-    /// Convenience initializer for the production composition root.
-    /// Wires the only ATProtoKit-backed provider.
-    public convenience init() {
-        self.init(provider: AppPasswordAuth(api: APIClient()))
-    }
-
     // MARK: - Intents
 
     public func signIn(handle: String, appPassword: String) async {
