@@ -69,7 +69,10 @@ targets:
         PRODUCT_NAME: BlueSkyTemplates
         TARGETED_DEVICE_FAMILY: "1,2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        CODE_SIGN_ENTITLEMENTS: Resources/BlueSkyTemplates.entitlements
+        # No keychain-access-groups at v2 launch — sim builds fail with
+        # errSecMissingEntitlement (-34018) without a provisioned access
+        # group. Re-add and migrate keychain entries when a Share Extension
+        # or Widget lands (~30 lines: read-old / write-new / delete-old).
         SWIFT_VERSION: "6.0"
     dependencies:
       - package: BlueSkyTemplates
