@@ -45,4 +45,25 @@ public enum ComposeText {
             && attachments.count <= attachmentLimit
             && attachments.allSatisfy { !$0.altText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     }
+
+    /// Merge a template's body + hashtags into a single composer string.
+    /// Bluesky's facet parser reads hashtags from the post body itself —
+    /// there's no separate "tags" field — so we concatenate. Two newlines
+    /// separator visually sets hashtags off from prose without forcing the
+    /// user to type them.
+    ///
+    /// Layout matrix:
+    /// - both empty    → ""
+    /// - body only     → body (unchanged)
+    /// - hashtags only → "#tag #tag"
+    /// - both          → "body\n\n#tag #tag"
+    public static func applyTemplate(body: String, hashtags: [String]) -> String {
+        let tags = hashtags.map { "#\($0)" }.joined(separator: " ")
+        switch (body.isEmpty, tags.isEmpty) {
+        case (true, true):   return ""
+        case (true, false):  return tags
+        case (false, true):  return body
+        case (false, false): return body + "\n\n" + tags
+        }
+    }
 }
