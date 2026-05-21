@@ -37,8 +37,17 @@ public struct LoginView: View {
                     SecureField("App password (xxxx-xxxx-xxxx-xxxx)", text: $appPassword)
                         .textContentType(.password)
                         .focused($focus, equals: .password)
-                        .submitLabel(.go)
-                        .onSubmit { submit() }
+                        // Show `.go` only when both fields are filled —
+                        // otherwise `.next` so the return key visibly
+                        // cycles focus instead of dead-tapping on submit.
+                        .submitLabel(canSubmit ? .go : .next)
+                        .onSubmit {
+                            if canSubmit {
+                                submit()
+                            } else {
+                                focus = .handle
+                            }
+                        }
                         .disabled(isBusy)
                 } header: {
                     Text("Sign in to Bluesky")
