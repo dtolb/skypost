@@ -189,6 +189,30 @@ public actor APIClient {
         }
     }
 
+    /// Posts an arbitrary text body. Returns the new record's AT-URI on
+    /// success. Facets (mentions, URLs, hashtags) are auto-parsed by
+    /// ATProtoKit's `ATFacetParser.parseFacets` from the text itself — see
+    /// architecture §8.3 for the SDK contract.
+    ///
+    /// Locale is the user's current locale by default; UI passes through
+    /// a single `Locale` per post. Multi-language post tagging is a Phase
+    /// D polish item.
+    public func createPost(text: String, locale: Locale = .current) async throws -> String {
+        guard let bluesky else { throw APIError.notAuthenticated }
+        do {
+            let ref = try await bluesky.createPostRecord(
+                text: text,
+                locales: [locale],
+                creationDate: Date()
+            )
+            Log.network.info("Posted record uri=\(ref.recordURI, privacy: .public)")
+            return ref.recordURI
+        } catch {
+            Log.network.error("createPostRecord failed: \(error.localizedDescription, privacy: .public)")
+            throw APIError.postFailed(reason: error.localizedDescription)
+        }
+    }
+
     // MARK: - Helpers
 
     private func finishSignIn(with cfg: ATProtocolConfiguration) async throws -> SessionInfo {
