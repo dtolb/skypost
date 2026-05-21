@@ -95,7 +95,7 @@ struct AuthServiceStateTests {
     @MainActor
     func signInFailsTransitionsToError() async {
         let provider = MockAuthProvider(
-            sessionOutcome: .failure(APIError.authenticationFailed(reason: "bad password"))
+            sessionOutcome: .failure(APIError.authenticationFailed(reason: .badCredentials))
         )
         let svc = AuthService(provider: provider)
         await svc.signIn(handle: "dan.bsky.social", appPassword: "wrong")
@@ -104,14 +104,14 @@ struct AuthServiceStateTests {
             Issue.record("Expected .error, got \(svc.state)")
             return
         }
-        #expect(error.localizedDescription.contains("bad password"))
+        #expect((error as? APIError) == .authenticationFailed(reason: .badCredentials))
     }
 
     @Test
     @MainActor
     func dismissErrorReturnsToSignedOut() async {
         let svc = AuthService(provider: MockAuthProvider(
-            sessionOutcome: .failure(APIError.authenticationFailed(reason: "x"))
+            sessionOutcome: .failure(APIError.authenticationFailed(reason: .badCredentials))
         ))
         await svc.signIn(handle: "x", appPassword: "y")
         svc.dismissError()

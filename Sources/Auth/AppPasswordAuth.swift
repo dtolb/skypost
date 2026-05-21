@@ -17,7 +17,10 @@ public struct AppPasswordAuth: AuthProvider {
 
     public func session(handle: String, secret: String?) async throws -> SessionInfo {
         guard let secret, !secret.isEmpty else {
-            throw APIError.authenticationFailed(reason: "App password is required.")
+            // Missing app password is treated as bad credentials — the user
+            // sees "Check your handle and app password." which is the right
+            // remediation.
+            throw APIError.authenticationFailed(reason: .badCredentials)
         }
         return try await api.authenticate(handle: handle, appPassword: secret)
     }

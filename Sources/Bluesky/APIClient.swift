@@ -63,8 +63,11 @@ public actor APIClient {
         do {
             try await cfg.authenticate(with: normalizedHandle, password: normalizedPassword)
         } catch {
-            Log.auth.error("Authenticate failed: \(error.localizedDescription, privacy: .public)")
-            throw APIError.authenticationFailed(reason: error.localizedDescription)
+            let reason = mapAuthFailure(error)
+            // Raw SDK text is hashed in the log so the device can be
+            // matched across log entries without leaking the contents.
+            Log.auth.error("Authenticate failed: reason=\(String(describing: reason), privacy: .public) raw=\(error.localizedDescription, privacy: .private(mask: .hash))")
+            throw APIError.authenticationFailed(reason: reason)
         }
         return try await finishSignIn(with: cfg)
     }
@@ -146,7 +149,10 @@ public actor APIClient {
         self.bluesky = bsky
 
         guard let user = try await kit.getUserSession() else {
-            throw APIError.authenticationFailed(reason: "No user session after authenticate")
+            // SDK said authentication succeeded but didn't hand us a user
+            // session. Shouldn't happen — treat as unknown rather than
+            // pretending the credentials were bad.
+            throw APIError.authenticationFailed(reason: .unknown)
         }
         let info = SessionInfo(did: user.sessionDID, handle: user.handle)
         Log.auth.info("Signed in did=\(info.did, privacy: .private(mask: .hash)) handle=\(info.handle, privacy: .public)")
@@ -165,4 +171,89 @@ extension String {
         let unprefixed = trimmed.drop(while: { $0 == "@" })
         return unprefixed.lowercased()
     }
+}
+
+// MARK: - Auth failure mapping
+
+/// Maps an SDK or transport error to a closed user-facing reason.
+///
+/// Lives inside `Bluesky` (the only module that imports ATProtoKit) so the
+/// translation between SDK error shapes and the public `AuthFailureReason`
+/// happens at the boundary. UI never sees the raw SDK string.
+///
+/// The mapping is intentionally conservative: unknown shapes fall through to
+/// `.unknown`. The call site logs the raw description with a
+/// `.private(mask: .hash)` privacy specifier so debugging is still possible
+/// without surfacing wire-level details.
+func mapAuthFailure(_ error: any Error) -> AuthFailureReason {
+    // Transport-layer failures (URLSession).
+    if let urlError = error as? URLError {
+        switch urlError.code {
+        case .notConnectedToInternet,
+             .networkConnectionLost,
+             .timedOut,
+             .cannotFindHost,
+             .cannotConnectToHost,
+             .dnsLookupFailed,
+             .internationalRoamingOff,
+             .callIsActive,
+             .dataNotAllowed:
+            return .network
+        default:
+            return .unknown
+        }
+    }
+
+    // ATProtoKit API errors (HTTP status mapped).
+    if let apiError = error as? ATAPIError {
+        switch apiError {
+        case .unauthorized, .forbidden:
+            return .badCredentials
+        case .badRequest(let response):
+            // The PDS uses 400 for invalid handle/password ("InvalidRequest",
+            // "AuthenticationRequired"), and also for "AuthFactorTokenRequired"
+            // when 2FA is on for the account.
+            if response.error.localizedCaseInsensitiveContains("authfactor") ||
+               response.message.localizedCaseInsensitiveContains("auth factor") {
+                return .twoFactorRequired
+            }
+            return .badCredentials
+        case .tooManyRequests:
+            return .rateLimited
+        case .badGateway, .serviceUnavailable, .gatewayTimeout, .internalServerError:
+            return .network
+        default:
+            return .unknown
+        }
+    }
+
+    // ATProtoKit's request-prep / config errors that surface during auth.
+    if let prepError = error as? ATRequestPrepareError {
+        switch prepError {
+        case .missingActiveSession:
+            return .badCredentials
+        case .invalidRequestURL, .invalidHostnameURL, .invalidPDS, .emptyPDSURL:
+            return .network
+        case .failedAfterRetries:
+            return .network
+        default:
+            return .unknown
+        }
+    }
+
+    if let configError = error as? ATProtocolConfiguration.ATProtocolConfigurationError {
+        switch configError {
+        case .noSessionToken, .tokensExpired:
+            return .badCredentials
+        }
+    }
+
+    if error is ApplSecureKeychainError {
+        // Reached only via the auth path, not the restore probe — means the
+        // SDK couldn't read/write its own keychain mid-flow. Treat as
+        // unknown rather than bad credentials.
+        return .unknown
+    }
+
+    return .unknown
 }
