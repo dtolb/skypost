@@ -1,7 +1,7 @@
 import Testing
 import Foundation
 import SwiftData
-@testable import Templates
+import Templates
 
 @Suite("Template @Model")
 struct TemplateModelTests {
@@ -136,4 +136,56 @@ struct TemplateCRUDTests {
         #expect(results.count == 1)
         #expect(results.first?.hashtags == ["bsky", "swiftui"])
     }
+}
+
+// MARK: - Hashtag parser
+
+@Suite("HashtagParser")
+struct HashtagParserTests {
+
+    @Test
+    func emptyStringReturnsEmpty() {
+        #expect(parseHashtags("") == [])
+    }
+
+    @Test
+    func whitespaceOnlyReturnsEmpty() {
+        #expect(parseHashtags("   ,  ,") == [])
+    }
+
+    @Test
+    func splitsOnCommasAndTrimsAndStripsHashAndLowercases() {
+        #expect(parseHashtags("#Bsky, swiftui,  #IOS") == ["bsky", "swiftui", "ios"])
+    }
+
+    @Test
+    func deduplicatesPreservingFirstOccurrenceOrder() {
+        #expect(parseHashtags("a, b, A, c, b") == ["a", "b", "c"])
+    }
+
+    @Test
+    func handlesUnicodeAndLeadingHashRuns() {
+        #expect(parseHashtags("##café, café, 日本語") == ["café", "日本語"])
+    }
+
+    @Test
+    @MainActor
+    func roundTripsThroughTemplateInit() throws {
+        let parsed = parseHashtags("#a, B")
+        let container = try inMemoryHashtagContainer()
+        let context = ModelContext(container)
+        let t = Template(title: "t", body: "b", hashtags: parsed)
+        context.insert(t)
+        try context.save()
+
+        let results = try context.fetch(FetchDescriptor<Template>())
+        #expect(results.count == 1)
+        #expect(results.first?.hashtags == ["a", "b"])
+    }
+}
+
+@MainActor
+private func inMemoryHashtagContainer() throws -> ModelContainer {
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    return try ModelContainer(for: Template.self, configurations: config)
 }
