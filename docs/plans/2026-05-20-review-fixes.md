@@ -71,10 +71,10 @@ Fixers run sequentially (parallel `swift build` would race the shared `.build/` 
 - [x] **11.** `AuthService.init()` convenience constructor smuggles a third `APIClient`. Delete the convenience init; let the composition root own wiring. — _landed `007db2a` on `feature/templates-crud` (Phase A5)._
 - [ ] **12.** `Sources/AppLogging/Keychain.swift:26-27` throws on `errSecDuplicateItem` from `SecItemAdd`. Address when the wrapper actually gets used (DPoP / Share Extension).
 - [ ] **13.** Asset catalog ships single 1024×1024 icon — App Store will reject. Defer to spec §11 step 5 polish.
-- [ ] **14.** `DesignSystem` / `Compose` / `Templates` placeholder targets pull Pow + MarkdownUI + Nuke into the build graph for 10 lines of code. Strip product deps until actually used.
+- [x] **14.** `DesignSystem` / `Compose` / `Templates` placeholder targets pull Pow + MarkdownUI + Nuke into the build graph for 10 lines of code. Strip product deps until actually used. — _landed `5a92988` on `feature/phase-d-polish` (Phase D2)._
 - [ ] **15.** `LoginView` / `HomeView` use literal `.red` / `.green` foreground styles — should use semantic role colors. Defer to the DesignSystem dispatch.
-- [ ] **16.** Force-unwrap of `URL(string: "https://bsky.app/...")!` in `LoginView`. Replace with `URL(static:)` or add an invariant comment.
-- [ ] **17.** `RootView` does not reset `AuthService.state` from `.restoring` if its `.task` is cancelled mid-restore. Defensive `defer` inside `AuthService.restore()`.
+- [x] **16.** Force-unwrap of `URL(string: "https://bsky.app/...")!` in `LoginView`. Replace with `URL(static:)` or add an invariant comment. — _landed `83f87b2` on `feature/phase-d-polish` (Phase D1) as a named `appPasswordSettingsURL` constant with WHY comment._
+- [x] **17.** `RootView` does not reset `AuthService.state` from `.restoring` if its `.task` is cancelled mid-restore. Defensive `defer` inside `AuthService.restore()`. — _landed `83f87b2` + `c9c24fa` on `feature/phase-d-polish` (Phase D1): defer guard + explicit `catch is CancellationError` arm + new `restoreCancellationLandsSignedOut` test._
 
 ## Spec-update items (for the next NEXT_STEPS revision on `main`)
 

@@ -57,14 +57,13 @@ reviewer → code-quality reviewer → mark done.
 - `ImageProcessor.swift:119` vs `ComposeTests.swift:131` — `CFString` vs `String`-keyed CGImageDestination dict style inconsistency between production and fixture.
 - `ComposeTests.swift:107` — `makeFixtureJPEG` could nest as a `static` on the suite struct for tighter scoping.
 
-## Phase D — Polish + Pow effects
+## Phase D — Polish + Pow effects ✅ (READY TO MERGE per final review)
 
-### TODO
-- **D2** — strip placeholder deps from `Package.swift` (plan #14)
-- **D3** — Pow effects (send spray + error shake) with reduce-motion gates (architecture §11 step 5)
+- ✅ **D1** — polish sweep + `postHelloWorld()` retired + plans #16/#17 closed + CancellationError fix (commits `83f87b2`, `c9c24fa`; 53/53 tests passing)
+- ✅ **D2** — `Package.swift` deps strip (plan #14): DesignSystem→`[]`, Pow added to Auth+Compose (commit `5a92988`; 53/53 tests passing, xcodebuild green)
+- ✅ **D3** — Pow send-spray + error-shake with reduce-motion + paired haptics (commit `588b677`; 53/53 tests passing, xcodebuild green)
 
-### In Progress
-- **D1** — Polish sweep (13 nit fixes + `postHelloWorld()` retirement + plan #16 + plan #17)
+Carry-forward nits list is now empty.
 
 ## Phase E — sketch
 
