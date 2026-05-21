@@ -18,7 +18,8 @@ public struct BlueSkyTemplatesApp: App {
 
     // One APIClient for the whole process — both the AuthService and the
     // HomeView post path share it (same Keychain UUID, same session state).
-    @State private var api = APIClient()
+    // Constructed exactly once in `init()` below and stored via `_api`.
+    @State private var api: APIClient
     @State private var auth: AuthService
     @State private var router = AppRouter()
 
