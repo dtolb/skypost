@@ -1,13 +1,14 @@
-# CI_TODO (next agent): no test target exists in this project yet at the
-# xcodebuild level. When tests are added (Swift Testing tests already exist
-# at the SPM level — they run via `swift test`), switch `xcodebuild build`
-# below to `xcodebuild test` with `-resultBundlePath test-results/result.xcresult`,
-# then add a step `xcresultparser --output-format junit
-# test-results/result.xcresult > test-results/junit.xml` and wire
-# `artifacts.reports.junit` so GitLab surfaces the results.
+---
+# JUnit reports come from `swift test --xunit-output` rather than
+# `xcodebuild test`: the iOS app target in App/BlueSkyTemplates.xcodeproj
+# has no test bundle yet, so all current test coverage is in the SPM library
+# targets (Tests/AuthTests, BlueskyTests, ComposeTests, TemplatesTests).
+# When an Xcode-level test target lands, add a parallel `xcodebuild test`
+# job that emits its own JUnit via xcresultparser.
 
 stages:
   - build
+  - test
 
 variables:
   SCHEME: BlueSkyTemplates
@@ -39,3 +40,21 @@ build:
         -scheme "$SCHEME" \
         -destination "$DESTINATION" \
         -configuration Debug
+
+test:
+  stage: test
+  tags:
+    - xcode
+  script:
+    - mkdir -p test-results
+    # `swift test --xunit-output FOO.xml` writes FOO-swift-testing.xml
+    # (and FOO-xctest.xml when XCTest cases are present). The glob in
+    # artifacts.reports.junit below picks up both.
+    - swift test --xunit-output test-results/junit.xml
+  artifacts:
+    when: always
+    paths:
+      - test-results/
+    reports:
+      junit: test-results/junit-*.xml
+    expire_in: 1 week
