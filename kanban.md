@@ -1,11 +1,19 @@
 # Kanban — BlueSkyTemplates v2 implementation
 
-**Current phase:** Phase D — Polish + Pow effects — stacked on `feature/compose-images`
-**Branch:** `feature/phase-d-polish`
-**Plan:** [`docs/plans/2026-05-21-phase-d-polish.md`](docs/plans/2026-05-21-phase-d-polish.md)
-**Prior phase plans (in MRs):** [`docs/plans/2026-05-21-phase-a-templates-crud.md`](docs/plans/2026-05-21-phase-a-templates-crud.md), [`docs/plans/2026-05-21-phase-b-compose-text.md`](docs/plans/2026-05-21-phase-b-compose-text.md), [`docs/plans/2026-05-21-phase-c-compose-images.md`](docs/plans/2026-05-21-phase-c-compose-images.md)
-**Open MR A+B:** <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/2>
-**Open MR C (stacked on A+B):** <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/3>
+> **Handoff state — 2026-05-21:** Phases A → D all shipped end-to-end with full review chains. Four MRs open against `gitlab.tolbbox.com:tolbnet/BlueSkyTemplates` (stacked). 53/53 Swift Testing cases passing. Simulator verification: login form + bad-creds error path validated (light + dark), signed-in TabView shell validated. Post-login tab content unverified manually (AppleScript taps don't land — iOS surface isn't in the macOS accessibility tree). Next session should resume from `docs/orchestrator-prompt.md`.
+
+**Current branch:** `feature/phase-d-polish` (tip `c9ac6c2`)
+**Open MRs:**
+- A+B: <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/2>
+- C (stacked on A+B): <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/3>
+- D (stacked on C): <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/4>
+
+**Per-phase plans:**
+- [Phase A — Templates CRUD](docs/plans/2026-05-21-phase-a-templates-crud.md)
+- [Phase B — Compose (text)](docs/plans/2026-05-21-phase-b-compose-text.md)
+- [Phase C — Compose (images)](docs/plans/2026-05-21-phase-c-compose-images.md)
+- [Phase D — Polish + Pow](docs/plans/2026-05-21-phase-d-polish.md)
+- **Phase E plan TBD** — orchestrator picks from `## Phase E — sketch` below
 
 Orchestrator is the main session; implementers are fresh `swift-coder`
 (Opus 4.7) subagents per task. Each task gets: implementer → spec-compliance
