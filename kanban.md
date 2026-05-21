@@ -13,7 +13,7 @@
 - [Phase B — Compose (text)](docs/plans/2026-05-21-phase-b-compose-text.md)
 - [Phase C — Compose (images)](docs/plans/2026-05-21-phase-c-compose-images.md)
 - [Phase D — Polish + Pow](docs/plans/2026-05-21-phase-d-polish.md)
-- **Phase E plan TBD** — orchestrator picks from `## Phase E — sketch` below
+- [Phase E — Templates → Composer hand-off](docs/plans/2026-05-21-phase-e-templates-to-compose.md) (in flight)
 
 Orchestrator is the main session; implementers are fresh `swift-coder`
 (Opus 4.7) subagents per task. Each task gets: implementer → spec-compliance
@@ -75,8 +75,25 @@ reviewer → code-quality reviewer → mark done.
 - `ComposeView.swift:75-76` — `AnyShapeStyle` wrapper on both ternary branches. Cosmetic; revisit if it ever blocks an edit.
 - `ComposeView.swift:346-353` — `copy(_:)` is `#if os(iOS)` / `#elseif os(macOS)` with no `#else`. Silent no-op on visionOS / watchOS targets if added.
 
-## Phase E — sketch
+## Phase E — Templates → Composer hand-off (in flight)
 
-- **Phase E — OAuth migration** (deferred until §7.3 trigger fires).
-- **Deferred from Phase D**: plan #8 (App struct rename), plan #10 (@MainActor consistency), plan #12 (Keychain duplicate), plan #13 (app icon), plan #15 (DesignSystem semantic colors). Nuke LazyImage when a feed/CDN-URL surface arrives.
+### TODO
+- **E1** — `TemplateApplier` service in Templates module + 6 tests (TDD)
+- **E2** — `ComposeText.applyTemplate` body+hashtags merge helper + 6 tests (TDD)
+- **E3** — "Use this template" UI affordances (TemplateListView row + TemplateEditorView toolbar)
+- **E4** — ComposeView consumes `TemplateApplier.pending` via `.onChange`
+- **E5** — App composition wiring + SignedInView tab routing
+- **E-wrap** — final review + Simulator pass + ask Dan before push / MR #5
+
+### In Progress
+- _none yet — about to dispatch E1._
+
+### Done
+- _none yet._
+
+## Phase F — sketch (post-Phase-E)
+
+- **Phase F — OAuth migration** (deferred until §7.3 trigger fires).
+- **Deferred-cleanup track**: plan #8 (App struct rename), plan #10 (@MainActor consistency), plan #12 (Keychain duplicate), plan #13 (app icon), plan #15 (DesignSystem semantic colors), ComposeView cosmetic nits (lines 75-76 ternary, `copy(_:)` missing `#else`). Nuke LazyImage when a feed/CDN-URL surface arrives.
+- **Feature track candidates**: reply / quote support, external link card embed, Save draft as template (round-trip of Phase E).
 
