@@ -22,4 +22,10 @@ public final class Template {
         self.hashtags = hashtags
         self.updatedAt = .now
     }
+
+    /// Stamps `updatedAt` to now. Call after mutating fields so list ordering
+    /// (sorted by `updatedAt` desc) reflects the edit.
+    public func touch() {
+        self.updatedAt = .now
+    }
 }
