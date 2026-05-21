@@ -138,11 +138,22 @@ public struct ComposeView: View {
                 send = .idle
             }
             // Phase E hand-off: when a template is applied from the Templates
-            // tab, ingest its body + hashtags wholesale. REPLACE, not append —
-            // template application is an explicit user-driven action, so
-            // carrying half-typed prose into the merge is worse UX than
-            // starting fresh (architecture §6.1 + Phase E plan decision).
-            .onChange(of: applier?.pending?.tick) { _, newTick in
+            // tab, ingest its body + hashtags wholesale (architecture §6.1 +
+            // Phase E plan decision: REPLACE, not append — template
+            // application is an explicit user-driven action; carrying
+            // half-typed prose into the merge is worse UX than starting
+            // fresh).
+            //
+            // `initial: true` covers the lazy-tab-init case: when the user's
+            // first "Use this template" tap is the same event that
+            // materializes ComposeView (TabView with `selection:` binding
+            // lazy-instantiates the non-selected tab child), the inserted
+            // view captures the already-changed tick as its baseline and a
+            // vanilla `.onChange` never fires. `initial: true` runs the
+            // closure on first attachment with the current value, so the
+            // FIRST apply ingests correctly. The guard handles "no pending
+            // at appearance".
+            .onChange(of: applier?.pending?.tick, initial: true) { _, newTick in
                 guard let newTick,
                       let pending = applier?.pending,
                       pending.tick == newTick
