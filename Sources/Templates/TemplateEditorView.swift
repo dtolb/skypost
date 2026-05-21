@@ -92,7 +92,7 @@ public struct TemplateEditorView: View {
     }
 
     private var canSave: Bool {
-        !title.trimmingCharacters(in: .whitespaces).isEmpty
+        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func save() {
@@ -132,9 +132,7 @@ private extension TemplateEditorView.Mode {
 
 #Preview("Edit template") {
     let container = makeEditorPreviewContainer()
-    let context = ModelContext(container)
     let t = Template(title: "Daily standup", body: "What did you ship?", hashtags: ["work"])
-    context.insert(t)
     return NavigationStack { TemplateEditorView(mode: .editing(t)) }
         .modelContainer(container)
 }

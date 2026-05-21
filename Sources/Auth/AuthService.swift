@@ -73,12 +73,25 @@ public final class AuthService {
     ///    of being silently logged out.
     public func restore() async {
         state = .restoring
+        defer {
+            // Guard against an early exit (cancellation, unanticipated throw site
+            // changes) leaving the UI hung on the splash spinner — if we're
+            // still .restoring when this function exits, fall back to signedOut.
+            if case .restoring = state {
+                state = .signedOut
+            }
+        }
         do {
             if let session = try await provider.restore() {
                 state = .signedIn(session)
             } else {
                 state = .signedOut
             }
+        } catch is CancellationError {
+            // .task was cancelled — view disappeared or the parent re-fired.
+            // Not a user-visible error; land at .signedOut so the next .task
+            // can retry cleanly.
+            state = .signedOut
         } catch {
             Log.auth.error("Restore failed: \(error.localizedDescription, privacy: .public)")
             state = .error(error, source: .restore)

@@ -172,23 +172,6 @@ public actor APIClient {
 
     // MARK: - Posting
 
-    /// Posts a fixed hello-world string. Returns the new record's AT-URI.
-    public func postHelloWorld() async throws -> String {
-        guard let bluesky else { throw APIError.notAuthenticated }
-        do {
-            let ref = try await bluesky.createPostRecord(
-                text: "hello from v2",
-                locales: [Locale(identifier: "en")],
-                creationDate: Date()
-            )
-            Log.network.info("Posted record uri=\(ref.recordURI, privacy: .public)")
-            return ref.recordURI
-        } catch {
-            Log.network.error("createPostRecord failed: \(error.localizedDescription, privacy: .public)")
-            throw APIError.postFailed(reason: error.localizedDescription)
-        }
-    }
-
     /// Posts an arbitrary text body. Returns the new record's AT-URI on
     /// success. Facets (mentions, URLs, hashtags) are auto-parsed by
     /// ATProtoKit's `ATFacetParser.parseFacets` from the text itself — see
