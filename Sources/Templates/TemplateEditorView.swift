@@ -8,6 +8,7 @@
 
 import SwiftUI
 import SwiftData
+import DesignSystem
 
 public struct TemplateEditorView: View {
 
@@ -55,13 +56,17 @@ public struct TemplateEditorView: View {
     @ViewBuilder
     private var content: some View {
         Form {
-            Section("Title") {
+            Section {
                 TextField("Daily standup", text: $title)
+            } header: {
+                BrandSectionHeader("Title")
             }
 
-            Section("Body") {
+            Section {
                 TextField("What did you ship?", text: $bodyText, axis: .vertical)
                     .lineLimit(4...10)
+            } header: {
+                BrandSectionHeader("Body")
             }
 
             Section {
@@ -71,7 +76,7 @@ public struct TemplateEditorView: View {
                     #endif
                     .autocorrectionDisabled()
             } header: {
-                Text("Hashtags")
+                BrandSectionHeader("Hashtags")
             } footer: {
                 Text("Separate with commas. # is optional.")
             }
