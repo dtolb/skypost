@@ -1,12 +1,13 @@
 # Kanban — BlueSkyTemplates v2 implementation
 
-> **Handoff state — 2026-05-21:** Phases A → D all shipped end-to-end with full review chains. Four MRs open against `gitlab.tolbbox.com:tolbnet/BlueSkyTemplates` (stacked). 53/53 Swift Testing cases passing. Simulator verification: login form + bad-creds error path validated (light + dark), signed-in TabView shell validated. Post-login tab content unverified manually (AppleScript taps don't land — iOS surface isn't in the macOS accessibility tree). Next session should resume from `docs/orchestrator-prompt.md`.
+> **Handoff state — 2026-05-21:** Phases A → E all shipped end-to-end with full review chains. Phase E adds the missing Templates → Composer hand-off (the product link that makes the app actually USE its templates). 65/65 Swift Testing cases passing. Simulator launch verified at the TabView shell (selection-driven TabView with `.tag(AppTab.*)` renders, default `.templates` selected); full Use-Template-→-tab-switch-→-body-filled flow still unverified manually for the same reason as prior phases (AppleScript taps don't land on iOS surface; cliclick not installed). Phase E branch awaits Dan's push decision before MR #5 opens.
 
-**Current branch:** `feature/phase-d-polish` (tip `c9ac6c2`)
+**Current branch:** `feature/phase-e-templates-to-compose` (tip `aa31980`)
 **Open MRs:**
 - A+B: <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/2>
 - C (stacked on A+B): <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/3>
 - D (stacked on C): <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/4>
+- E (stacked on D): <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/5>
 
 **Per-phase plans:**
 - [Phase A — Templates CRUD](docs/plans/2026-05-21-phase-a-templates-crud.md)
@@ -75,21 +76,26 @@ reviewer → code-quality reviewer → mark done.
 - `ComposeView.swift:75-76` — `AnyShapeStyle` wrapper on both ternary branches. Cosmetic; revisit if it ever blocks an edit.
 - `ComposeView.swift:346-353` — `copy(_:)` is `#if os(iOS)` / `#elseif os(macOS)` with no `#else`. Silent no-op on visionOS / watchOS targets if added.
 
-## Phase E — Templates → Composer hand-off (in flight)
-
-### TODO
-- **E1** — `TemplateApplier` service in Templates module + 6 tests (TDD)
-- **E2** — `ComposeText.applyTemplate` body+hashtags merge helper + 6 tests (TDD)
-- **E3** — "Use this template" UI affordances (TemplateListView row + TemplateEditorView toolbar)
-- **E4** — ComposeView consumes `TemplateApplier.pending` via `.onChange`
-- **E5** — App composition wiring + SignedInView tab routing
-- **E-wrap** — final review + Simulator pass + ask Dan before push / MR #5
+## Phase E — Templates → Composer hand-off ✅ (READY TO MERGE per final review)
 
 ### In Progress
-- _none yet — about to dispatch E1._
+- _none — phase shipped pending Dan's manual Simulator verification._
 
 ### Done
-- _none yet._
+- ✅ **E1** — `TemplateApplier` service in Templates module + 6 tests (commits `099a834` + `b18aeb1` review fixes; 59/59 tests passing)
+- ✅ **E2** — `ComposeText.applyTemplate` body+hashtags merge helper + 6 tests (commit `cfd104f`; 65/65 tests passing)
+- ✅ **E3** — "Use this template" UI affordances (commits `3278b09` + `6946233` review fixes; 65/65 tests passing, xcodebuild green)
+- ✅ **E4** — ComposeView consumes `TemplateApplier.pending` (commit `aa2c894`; 65/65 tests passing, xcodebuild green)
+- ✅ **E5** — App composition wiring + SignedInView tab routing (commit `aa31980`; 65/65 tests passing, xcodebuild green)
+- ✅ **E-wrap** — final reviewer ✅ APPROVED FOR MERGE; Simulator launch verified (TabView shell + default `.templates` tab); branch pushed; MR !5 opened against `feature/phase-d-polish`
+
+### Deferred-cosmetic nits (Phase E)
+- E2 nit — `applyTemplate` doesn't trim whitespace-only body; downstream submit gate trims so benign. One-line comment if revisited.
+- E2 nit — suite name `"ComposeText template application"` doesn't match `"ComposeText validator"` cadence; cosmetic.
+- E2 nit — optional `hashtagsArePassedThroughVerbatim()` test for `"two words"` → `"#two words"` to lock pass-through contract; explicitly out-of-scope per plan.
+- E3 nit — `square.and.arrow.up` icon reads as Share Sheet to users; consider `text.badge.plus` / `arrow.up.doc` / `square.and.pencil` later. Bikeshed-tier.
+- E3 nit — `TemplateEditorView` Use Template button uses the STORED `template.body/hashtags`, not the user's unsaved `bodyText/hashtagsRaw` `@State`. If user edits then taps Use Template, edits are ignored. Per-plan literal behavior; revisit with explicit UX call (auto-save? transient apply? gate behind `canSave`?).
+- E4 nit — `ComposeView.onChange(of: applier?.pending?.tick)` re-fires once after `applier?.consume()` (pending: n → nil); guard handles it cleanly but a future reader has to derive that. One-line `// consume() below re-triggers; guard short-circuits` would document it.
 
 ## Phase F — sketch (post-Phase-E)
 
