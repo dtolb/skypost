@@ -9,12 +9,16 @@
 import SwiftUI
 import Bluesky
 
+// Default is nil so the environment never silently spins up a real
+// Keychain-touching APIClient for previews, tests, or un-injected
+// subtrees. The App is the single point of injection (see
+// `BlueSkyTemplatesApp`); consumers must handle the optional explicitly.
 private struct APIClientKey: EnvironmentKey {
-    static let defaultValue: APIClient = APIClient()
+    static let defaultValue: APIClient? = nil
 }
 
 extension EnvironmentValues {
-    public var apiClient: APIClient {
+    public var apiClient: APIClient? {
         get { self[APIClientKey.self] }
         set { self[APIClientKey.self] = newValue }
     }

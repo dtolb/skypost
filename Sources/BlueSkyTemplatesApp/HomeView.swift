@@ -16,7 +16,7 @@ public struct HomeView: View {
     public let session: SessionInfo
 
     @Environment(AuthService.self) private var auth
-    @Environment(\.apiClient) private var api
+    @Environment(\.apiClient) private var api: APIClient?
 
     @State private var post: PostState = .idle
 
@@ -115,6 +115,9 @@ public struct HomeView: View {
     // MARK: - Actions
 
     private func postHello() {
+        guard let api else {
+            fatalError("HomeView requires an APIClient in the environment — inject via .environment(\\.apiClient, ...) at the App root")
+        }
         post = .posting
         Task {
             do {
