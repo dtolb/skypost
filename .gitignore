@@ -1,0 +1,25 @@
+# macOS
+.DS_Store
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+DerivedData/
+build/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Generated Xcode project (regenerated via xcodegen)
+App/BlueSkyTemplates.xcodeproj/
+
+# Local scratch — not part of the codebase
+.research/
+
+# Legacy v1 working tree leftovers (will be removed once v2 is established)
+BlueSkyTemplates/
+
+# CI artifacts
+test-results/
