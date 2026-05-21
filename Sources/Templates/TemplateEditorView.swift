@@ -18,6 +18,7 @@ public struct TemplateEditorView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(TemplateApplier.self) private var applier: TemplateApplier?
 
     private let mode: Mode
     private let template: Template?
@@ -88,6 +89,27 @@ public struct TemplateEditorView: View {
                 Button("Save", action: save)
                     .disabled(!canSave)
             }
+            if case .editing(let editing) = mode {
+                #if os(iOS)
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        applier?.apply(editing)
+                        dismiss()
+                    } label: {
+                        Label("Use Template", systemImage: "square.and.arrow.up")
+                    }
+                }
+                #else
+                ToolbarItem(placement: .automatic) {
+                    Button {
+                        applier?.apply(editing)
+                        dismiss()
+                    } label: {
+                        Label("Use Template", systemImage: "square.and.arrow.up")
+                    }
+                }
+                #endif
+            }
         }
     }
 
@@ -135,6 +157,7 @@ private extension TemplateEditorView.Mode {
     let t = Template(title: "Daily standup", body: "What did you ship?", hashtags: ["work"])
     return NavigationStack { TemplateEditorView(mode: .editing(t)) }
         .modelContainer(container)
+        .environment(TemplateApplier())
 }
 
 @MainActor
