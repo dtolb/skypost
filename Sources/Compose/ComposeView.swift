@@ -23,6 +23,7 @@
 import SwiftUI
 import SwiftData
 import Bluesky
+import DesignSystem
 import Models
 import Templates
 
@@ -44,6 +45,11 @@ public struct ComposeView: View {
     @Environment(\.externalLinkResolver) private var resolver: (any ExternalLinkResolver)?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(TemplateApplier.self) private var applier: TemplateApplier?
+    // Optional because the environment value may be absent in previews and
+    // tests; `sessionLog?.append(...)` is a no-op when nil. Wired into
+    // BlueSkyTemplatesApp as a long-lived `@State` and injected via
+    // `.environment(sessionLog)`.
+    @Environment(SentSessionLog.self) private var sessionLog: SentSessionLog?
 
     @Query(sort: \Template.updatedAt, order: .reverse) private var templates: [Template]
 
@@ -127,7 +133,7 @@ public struct ComposeView: View {
                     }
                 }
 
-                Section("Images") {
+                Section {
                     #if canImport(PhotosUI)
                     // Snapshot the count so the picker's @Sendable label
                     // closure doesn't capture the main-actor-isolated
@@ -158,6 +164,8 @@ public struct ComposeView: View {
                     ForEach($attachments) { $attachment in
                         AttachmentRow(attachment: $attachment, onRemove: { remove(attachment) })
                     }
+                } header: {
+                    BrandSectionHeader("Images")
                 }
 
                 // Hide the Link section entirely when idle; rendering an
@@ -165,8 +173,10 @@ public struct ComposeView: View {
                 if case .idle = linkState {
                     EmptyView()
                 } else {
-                    Section("Link") {
+                    Section {
                         linkSectionContent
+                    } header: {
+                        BrandSectionHeader("Link")
                     }
                 }
 
@@ -388,23 +398,29 @@ public struct ComposeView: View {
         case .idle, .sending:
             EmptyView()
         case .sent(let uri):
+            // Mantis hero treatment: 5-stop gradient WelcomeHero spans the
+            // row edge-to-edge (matches LoginView H2: clear row background +
+            // zero insets). Copy-URI contextMenu preserved. Accessibility
+            // label is composed manually instead of relying on WelcomeHero's
+            // default so VoiceOver also surfaces the hold-to-copy
+            // affordance. The 2-second auto-clear in `.task(id: send)`
+            // wipes this back to .idle after the user gets to see the
+            // celebration.
             Section {
-                VStack(alignment: .leading, spacing: 6) {
-                    Label("Posted!", systemImage: "checkmark.seal.fill")
-                        .foregroundStyle(.green)
-                    Text(uri)
-                        .font(.caption.monospaced())
-                        .lineLimit(2)
-                        .truncationMode(.middle)
-                        .foregroundStyle(.secondary)
-                        .contextMenu {
-                            Button {
-                                copy(uri)
-                            } label: {
-                                Label("Copy URI", systemImage: "doc.on.doc")
-                            }
-                        }
+                WelcomeHero(
+                    "Posted!",
+                    subtitle: uri
+                )
+                .contextMenu {
+                    Button {
+                        copy(uri)
+                    } label: {
+                        Label("Copy URI", systemImage: "doc.on.doc")
+                    }
                 }
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .accessibilityLabel("Posted to Bluesky. URI \(uri). Tap and hold to copy.")
             }
         case .failed(let message):
             Section {
@@ -531,6 +547,12 @@ public struct ComposeView: View {
         Task {
             do {
                 let uri = try await api.createPost(text: body, images: pack, external: card)
+                // The await above already succeeded — record into the
+                // in-memory session log before flipping to .sent so HomeView's
+                // "Sent this session" list picks up the new entry. Optional
+                // chaining keeps previews/tests crash-free when no log is
+                // injected.
+                sessionLog?.append(uri: uri, body: body)
                 send = .sent(uri: uri)
             } catch {
                 send = .failed(message: error.localizedDescription)
@@ -718,7 +740,9 @@ private struct TemplatePickerLabel: View {
                 Button(option.menuTitle) { onSelect(option) }
             }
         } label: {
-            HStack {
+            HStack(spacing: 12) {
+                LeadIcon(systemName: "doc.text", tint: BrandColor.tint)
+                    .accessibilityHidden(true)
                 Text("Template")
                     .foregroundStyle(.primary)
                 Spacer()

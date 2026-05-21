@@ -69,6 +69,7 @@ let package = Package(
             dependencies: [
                 "Bluesky",
                 "AppLogging",
+                "DesignSystem",
                 "Models",
                 .product(name: "Pow", package: "Pow"),
             ]
@@ -126,6 +127,14 @@ let package = Package(
         .testTarget(
             name: "BlueskyTests",
             dependencies: ["Bluesky"]
+        ),
+        .testTarget(
+            name: "DesignSystemTests",
+            dependencies: ["DesignSystem"]
+        ),
+        .testTarget(
+            name: "BlueSkyTemplatesAppTests",
+            dependencies: ["BlueSkyTemplatesApp"]
         ),
     ],
     swiftLanguageModes: [.v6]

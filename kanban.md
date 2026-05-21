@@ -1,8 +1,8 @@
 # Kanban — BlueSkyTemplates v2 implementation
 
-> **Handoff state — 2026-05-21:** Phases A → G1 shipped end-to-end. Phase G1 is the Compose-first UX refactor — Compose is now the default tab, a pinned `Template: [None ▾]` Menu lives at the top of the composer, the Templates list row-tap applies (Edit moves to trailing swipe + context menu), and the share-icon hack in the editor toolbar is retired. 82/82 Swift Testing cases on Phase G1 tip (5 new in `TemplatePickerOptionTests`). UI lifecycle still covered by the deferred XCUITest backlog. Sim verification deferred per the Phase F headless-Simulator gap.
+> **Handoff state — 2026-05-21:** Phases A → H shipped end-to-end. Phase H is the Mantis design-system restyle — DesignSystem module grown from a placeholder into a small primitive library (BrandColor / BrandGradient / BrandCard / BrandSectionHeader / LeadIcon / WelcomeHero / BrandTypography), a new HomeView tab driven by an in-memory SentSessionLog, and all five existing screens re-skinned with Mantis tokens while preserving every existing behavior. 95/95 Swift Testing cases on Phase H tip (4 new in `DesignSystemTests`, 3 new in `SentSessionLogTests`, 4 new in `HomeActionRoutingTests` from the new BlueSkyTemplatesAppTests target). Phase G1's `selectedTab = .compose` cold-launch default preserved. UI lifecycle still covered by the deferred XCUITest backlog. Sim verification deferred per the Phase F headless-Simulator gap.
 
-**Current branch:** `feature/phase-f-external-link-card` (tip `d1c7158`)
+**Current branch:** `feature/phase-h-mantis-restyle` (tip `51c5e40`)
 **Open MRs:**
 - A+B: <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/2>
 - C (stacked on A+B): <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/3>
@@ -141,6 +141,49 @@ reviewer → code-quality reviewer → mark done.
 - G1.4 nit — `delete(_ template:)` in `TemplateListView` does not nil out `navigationTarget` if it equals the deleted template. Narrow UI race (would require deletion while editor is pushed); one-line defensive guard recommended.
 - G1.4 nit — empty-state `#Preview("Templates — empty")` does not inject `TemplateApplier`; benign because `ContentUnavailableView` has no apply path, but pattern-inconsistent with the populated preview.
 - G1.5 nit — none surfaced; pure deletion change.
+
+## Phase H — Mantis design-system restyle ✅
+
+**Spec:** [`docs/specs/2026-05-21-phase-h-mantis-restyle-design.md`](docs/specs/2026-05-21-phase-h-mantis-restyle-design.md)
+**Plan:** [`docs/plans/2026-05-21-phase-h-mantis-restyle.md`](docs/plans/2026-05-21-phase-h-mantis-restyle.md)
+**Branch:** `feature/phase-h-mantis-restyle` (tip `51c5e40`)
+
+### Done
+- ✅ **H1** — DesignSystem primitives (BrandColor, BrandGradient, BrandCard, BrandSectionHeader, LeadIcon, WelcomeHero, BrandTypography) + SentSessionLog in Compose + DesignSystemTests target + SentSessionLogTests (commit `183d1f8`; 91/91 tests, xcodebuild green)
+- ✅ **H2** — LoginView WelcomeHero + BrandSectionHeader (commit `fa04230`; 91/91 tests, xcodebuild green)
+- ✅ **H3** — HomeView + tab wiring + sessionLog injection (commit `8c0061f`; 95/95 tests, xcodebuild green). `AppTab` promoted to public, `.home` added at front, `selectedTab` default unchanged at `.compose`.
+- ✅ **H4** — TemplateListView LeadIcon rows + WelcomeHero empty state (commit `b4a7137`; 95/95 tests, xcodebuild green)
+- ✅ **H5** — TemplateEditorView BrandSectionHeader on Title/Body/Hashtags (commit `b7580c7`; 95/95 tests, xcodebuild green)
+- ✅ **H6** — ComposeView `.sent(uri:)` → WelcomeHero celebration + brand-headed Images/Link + LeadIcon on picker + SentSessionLog hook in `submit()` (commit `2c76780`; 95/95 tests, xcodebuild green)
+- ✅ **H7** — SettingsTabView LeadIcon rows (person.fill / key.fill / destructive sign-out) + BrandSectionHeader (commit `498225a`; 95/95 tests, xcodebuild green)
+- ✅ **H8** — `.tint(BrandColor.tint)` at WindowGroup; final SignedInView tab order verified (commit `51c5e40`; 95/95 tests, xcodebuild green)
+- ✅ **H-review** — spec-compliance reviewer + code-quality reviewer subagents both ✅ APPROVED FOR MERGE; 0 must-fix bugs, 13 deferred-cosmetic nits captured below
+
+### Deferred-cosmetic nits (Phase H)
+
+*From spec-compliance review:*
+- H3 nit — `HomeView` quick-action cell label is "New" (not "New template" as spec says) — required to fit the 4-column `LazyVGrid`. Fix at `HomeView.swift:114` if the grid ever collapses to 3 columns. Cosmetic, behavior-irrelevant.
+- H3 nit — Home quick-action cells use an inline `.rect(cornerRadius: 14)` rather than the 10pt-radius `BrandCard` primitive. Same visual family, different radius. `HomeView.swift:137`.
+- H3 nit — "Sent this session" list rendered as a custom white rounded-rect with manual `Divider().padding(.leading, 56)` rather than the grouped `List` the spec called for. Visual consistency choice for the ScrollView layout.
+- H1 nit — `WelcomeHero` API surface uses `(_:subtitle:@ViewBuilder trailing:)` rather than the spec's `(title:subtitle:trailing:)` accessory positional. Functionally equivalent; cosmetic API shape.
+- H3 nit — Home hero's templates-count chip is an `.overlay(alignment: .topTrailing)` capsule rather than passed through `WelcomeHero`'s `trailing:` slot. Visually identical, structurally separate. `HomeView.swift:96-104`.
+- H1 nit — `WelcomeHero.composeAccessibilityLabel("Title!", subtitle: "…")` yields `"Title!. …"` (double-period). ComposeView's `.sent` overrides with a custom label so no VoiceOver weirdness ships; primitive nit only. `WelcomeHero.swift:59`.
+
+*From code-quality review:*
+- H7 / H6 nit — `LeadIcon(...).accessibilityHidden(true)` redundancy at the call site; `LeadIcon` already calls `.accessibilityHidden(true)` internally (`LeadIcon.swift:28`). 3 occurrences in `SettingsTabView.swift:31,39,61` and 1 in `ComposeView.swift:745`. Pick one direction across the codebase: keep internal (drop call-sites) or keep call-sites (drop internal).
+- H3 / H4 nit — `Color(white: 0.95)` macOS-fallback `pageBackground` duplicated in `HomeView.swift:217-223` (static var) and `TemplateListView.swift:116-122` (instance var). Also stylistically inconsistent (static vs instance). If a third site lands, promote to a `BrandColor.pageBackground` (or `BrandColor.groupedBackground`) primitive.
+- H3 nit — quick-action `.accessibilityLabel(title)` reads "New" / "Compose" / "Templates" / "Settings" verbatim; "New" specifically loses context. Adding " template" suffix or a more verbose a11y label (e.g. "New template") would clarify. `HomeView.swift:140`.
+- H1 nit — `BrandSectionHeader` applies `.textCase(.uppercase)` AND `.kerning(1.0)` manually, but SwiftUI's Form layer re-applies `.textCase(.uppercase)` to Section headers by default. Harmless double-uppercase on letters; the manual kerning may be re-laid out by the OS pass. Verify visually; consider `.textCase(nil)` on parent Sections (per the primitive's own docstring guidance) if kerning looks off.
+- H8 carry-forward — `TemplateListView.swift:80` `.tint(.accentColor)` on the Edit swipe button. Benign — `.accentColor` resolves to the inherited `BrandColor.tint` from the WindowGroup, so the line *honors* the new app tint rather than fighting it. Could be deleted to drop the indirection, but the explicit override documents intent (non-destructive swipe button).
+- H1 nit — `BrandGradient.welcome` uses pre-computed `UnitPoint` start/end values derived from 250.38°. If Mantis later tweaks the angle, two magic-number pairs would need updating in lockstep. A `private func gradientUnitPoints(forDegrees:)` helper would document the math. `BrandGradient.swift`.
+- H1 nit — `LeadIcon` uses fixed 30pt frame + 15pt SF Symbol. Mantis kit also defines 22pt and 40pt variants for different row densities. Add a `LeadIcon.Size` enum when a second size is adopted; not needed yet.
+
+### Notes
+- `selectedTab` default stays `.compose` — Phase G1 cold-launch guarantee preserved.
+- `TemplateApplier` hand-off still flips to `.compose` on apply (untouched in this phase).
+- `SentSessionLog` is in-memory, capped at 50, cleared on process termination. No persistence; no `signOut` reset (acceptable per spec).
+- 95/95 tests passing on every commit; `xcodebuild` against iPhone 17 simulator green throughout.
+- Sim verification deferred to Dan (Simulator headless on this Mac per the F-sim memory).
 
 ## Phase G — sketch (post-Phase-F)
 

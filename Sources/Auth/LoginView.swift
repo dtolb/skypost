@@ -4,6 +4,7 @@
 // small @State enum (per §6.1). No ViewModel.
 
 import SwiftUI
+import DesignSystem
 import Models
 
 #if canImport(Pow)
@@ -76,6 +77,15 @@ public struct LoginView: View {
     private var formContent: some View {
         Form {
             Section {
+                WelcomeHero(
+                    "Welcome to BlueSky Templates",
+                    subtitle: "Post from your saved templates."
+                )
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+            }
+
+            Section {
                 TextField("handle.bsky.social", text: $handle)
                     #if os(iOS)
                     .textInputAutocapitalization(.never)
@@ -104,7 +114,7 @@ public struct LoginView: View {
                     }
                     .disabled(isBusy)
             } header: {
-                Text("Sign in to Bluesky")
+                BrandSectionHeader("Sign in to Bluesky")
             } footer: {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Use an app password, not your account password.")

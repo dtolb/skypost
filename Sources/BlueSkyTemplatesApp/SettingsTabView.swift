@@ -10,6 +10,7 @@
 import SwiftUI
 import Auth
 import Models
+import DesignSystem
 
 public struct SettingsTabView: View {
 
@@ -24,22 +25,48 @@ public struct SettingsTabView: View {
     public var body: some View {
         NavigationStack {
             Form {
-                Section("Account") {
-                    LabeledContent("Handle", value: session.handle)
-                    LabeledContent("DID") {
+                Section {
+                    HStack(spacing: 12) {
+                        LeadIcon(systemName: "person.fill", tint: BrandColor.tint)
+                            .accessibilityHidden(true)
+                        Text("Handle")
+                        Spacer()
+                        Text(session.handle)
+                            .foregroundStyle(.secondary)
+                    }
+                    HStack(spacing: 12) {
+                        LeadIcon(systemName: "key.fill", tint: .gray)
+                            .accessibilityHidden(true)
+                        Text("DID")
+                        Spacer()
                         Text(session.did)
                             .font(.caption.monospaced())
                             .lineLimit(1)
                             .truncationMode(.middle)
                             .foregroundStyle(.secondary)
                     }
+                } header: {
+                    BrandSectionHeader("Account")
                 }
 
                 Section {
-                    Button("Sign out", role: .destructive) {
+                    Button {
                         Task { await auth.signOut() }
+                    } label: {
+                        HStack(spacing: 12) {
+                            LeadIcon(
+                                systemName: "rectangle.portrait.and.arrow.right",
+                                tint: .red
+                            )
+                            .accessibilityHidden(true)
+                            Text("Sign out")
+                                .foregroundStyle(.red)
+                            Spacer()
+                        }
+                        .contentShape(.rect)
                     }
-                    .frame(maxWidth: .infinity)
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Sign out")
                 }
             }
             .navigationTitle("Settings")
