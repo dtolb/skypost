@@ -23,8 +23,7 @@ public final class Template {
         self.updatedAt = .now
     }
 
-    /// Stamps `updatedAt` to now. Call after mutating fields so list ordering
-    /// (sorted by `updatedAt` desc) reflects the edit.
+    /// Bumps updatedAt so the template floats to the top of the updatedAt-desc list.
     public func touch() {
         self.updatedAt = .now
     }

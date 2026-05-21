@@ -32,27 +32,27 @@ struct TemplateCRUDTests {
     @MainActor
     func fetchEmptyContainerReturnsEmptyArray() throws {
         let container = try inMemoryContainer()
-        let ctx = ModelContext(container)
-        let results = try ctx.fetch(FetchDescriptor<Template>())
+        let context = ModelContext(container)
+        let results = try context.fetch(FetchDescriptor<Template>())
         #expect(results.isEmpty)
     }
 
     @Test
     @MainActor
-    func insertAndFetchRoundTrip() throws {
+    func insertAndFetchRoundTrip() async throws {
         let container = try inMemoryContainer()
-        let ctx = ModelContext(container)
+        let context = ModelContext(container)
 
         let older = Template(title: "Older", body: "First", hashtags: ["a"])
-        ctx.insert(older)
-        try ctx.save()
+        context.insert(older)
+        try context.save()
 
         // Pause so updatedAt timestamps are strictly ordered.
-        Thread.sleep(forTimeInterval: 0.05)
+        try await Task.sleep(for: .milliseconds(50))
 
         let newer = Template(title: "Newer", body: "Second", hashtags: ["b", "c"])
-        ctx.insert(newer)
-        try ctx.save()
+        context.insert(newer)
+        try context.save()
 
         let olderID = older.id
         let newerID = newer.id
@@ -60,7 +60,7 @@ struct TemplateCRUDTests {
         let descriptor = FetchDescriptor<Template>(
             sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
         )
-        let results = try ctx.fetch(descriptor)
+        let results = try context.fetch(descriptor)
 
         #expect(results.count == 2)
         #expect(results.first?.id == newerID)
@@ -71,33 +71,33 @@ struct TemplateCRUDTests {
 
     @Test
     @MainActor
-    func touchUpdatesUpdatedAtAndReordering() throws {
+    func touchMovesTemplateToFrontOfFetchOrder() async throws {
         let container = try inMemoryContainer()
-        let ctx = ModelContext(container)
+        let context = ModelContext(container)
 
         let a = Template(title: "A", body: "first", hashtags: [])
-        ctx.insert(a)
-        try ctx.save()
+        context.insert(a)
+        try context.save()
 
-        Thread.sleep(forTimeInterval: 0.05)
+        try await Task.sleep(for: .milliseconds(50))
 
         let b = Template(title: "B", body: "second", hashtags: [])
-        ctx.insert(b)
-        try ctx.save()
+        context.insert(b)
+        try context.save()
 
         // Sanity check: before touch, B is newest.
         let descriptor = FetchDescriptor<Template>(
             sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
         )
-        let beforeTouch = try ctx.fetch(descriptor)
+        let beforeTouch = try context.fetch(descriptor)
         #expect(beforeTouch.first?.id == b.id)
 
-        Thread.sleep(forTimeInterval: 0.05)
+        try await Task.sleep(for: .milliseconds(50))
 
         a.touch()
-        try ctx.save()
+        try context.save()
 
-        let afterTouch = try ctx.fetch(descriptor)
+        let afterTouch = try context.fetch(descriptor)
         #expect(afterTouch.first?.id == a.id)
         #expect(afterTouch.last?.id == b.id)
     }
@@ -106,33 +106,33 @@ struct TemplateCRUDTests {
     @MainActor
     func deleteRemovesFromFetch() throws {
         let container = try inMemoryContainer()
-        let ctx = ModelContext(container)
+        let context = ModelContext(container)
 
         let keep = Template(title: "Keep", body: "stays", hashtags: [])
         let drop = Template(title: "Drop", body: "goes", hashtags: [])
-        ctx.insert(keep)
-        ctx.insert(drop)
-        try ctx.save()
+        context.insert(keep)
+        context.insert(drop)
+        try context.save()
 
-        ctx.delete(drop)
-        try ctx.save()
+        context.delete(drop)
+        try context.save()
 
-        let results = try ctx.fetch(FetchDescriptor<Template>())
+        let results = try context.fetch(FetchDescriptor<Template>())
         #expect(results.count == 1)
         #expect(results.first?.id == keep.id)
     }
 
     @Test
     @MainActor
-    func hashtagsArrayPersistedAsExpected() throws {
+    func hashtagsArrayRoundTripsThroughSwiftData() throws {
         let container = try inMemoryContainer()
-        let ctx = ModelContext(container)
+        let context = ModelContext(container)
 
         let t = Template(title: "Tagged", body: "x", hashtags: ["bsky", "swiftui"])
-        ctx.insert(t)
-        try ctx.save()
+        context.insert(t)
+        try context.save()
 
-        let results = try ctx.fetch(FetchDescriptor<Template>())
+        let results = try context.fetch(FetchDescriptor<Template>())
         #expect(results.count == 1)
         #expect(results.first?.hashtags == ["bsky", "swiftui"])
     }
