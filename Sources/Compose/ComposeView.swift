@@ -13,6 +13,7 @@
 
 import SwiftUI
 import Bluesky
+import Templates
 
 #if canImport(Pow)
 import Pow
@@ -30,6 +31,7 @@ public struct ComposeView: View {
 
     @Environment(\.apiClient) private var api: APIClient?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(TemplateApplier.self) private var applier: TemplateApplier?
 
     @State private var text: String = ""
     @State private var attachments: [ComposeAttachment] = []
@@ -134,6 +136,22 @@ public struct ComposeView: View {
                 text = ""
                 attachments = []
                 send = .idle
+            }
+            // Phase E hand-off: when a template is applied from the Templates
+            // tab, ingest its body + hashtags wholesale. REPLACE, not append —
+            // template application is an explicit user-driven action, so
+            // carrying half-typed prose into the merge is worse UX than
+            // starting fresh (architecture §6.1 + Phase E plan decision).
+            .onChange(of: applier?.pending?.tick) { _, newTick in
+                guard let newTick,
+                      let pending = applier?.pending,
+                      pending.tick == newTick
+                else { return }
+                text = ComposeText.applyTemplate(body: pending.body, hashtags: pending.hashtags)
+                attachments = []
+                send = .idle
+                applier?.consume()
+                editorFocused = true
             }
             #if canImport(PhotosUI)
             // PhotosPickerItems land here async; the picker itself can't host
