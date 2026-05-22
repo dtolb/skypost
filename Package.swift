@@ -71,6 +71,7 @@ let package = Package(
             name: "Camera",
             dependencies: [
                 "AppLogging",
+                "DesignSystem",
                 "Models",
             ]
         ),
