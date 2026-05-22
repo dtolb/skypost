@@ -321,7 +321,7 @@ public struct ComposeView: View {
             #endif
             #if os(iOS)
             .sheet(isPresented: $cameraPresented) {
-                SquareCameraView { data, width, height in
+                CameraCaptureView { data, width, height in
                     ingestCameraCapture(data: data, pixelWidth: width, pixelHeight: height)
                 }
             }

@@ -106,3 +106,17 @@ marked ⚠️ require teardown across multiple app sessions.
 - [ ] Face-up capture (device flat on a table) → captured EXIF orientation is correct
 - [ ] iPhone 17 simulator → camera button → "No camera on this device" card (not a crash)
 - [ ] Post a captured photo end-to-end → appears on Bluesky with 1:1 aspect ratio
+
+## Phase J2 — Camera controls
+
+Manual verification, on a physical iPhone with multiple rear lenses where possible.
+
+- [ ] Camera opens to Default ratio + Portrait framing with shutter/review controls visible
+- [ ] Ratio segmented control switches between Default and 1:1; preview frame changes immediately
+- [ ] Portrait/landscape toggle changes Default preview framing without rotating the app shell
+- [ ] Captured Default Portrait photo attaches with a 3:4 pixel aspect
+- [ ] Captured Default Landscape photo attaches with a 4:3 pixel aspect
+- [ ] Captured 1:1 photo attaches with a square pixel aspect
+- [ ] Zoom chips reflect available hardware (`0.5x`, `1x`, `3x` on triple-camera devices) and switching chips keeps preview live
+- [ ] Retake preserves the selected ratio/orientation/zoom choices
+- [ ] iPhone 17 simulator still presents the no-camera card instead of crashing
