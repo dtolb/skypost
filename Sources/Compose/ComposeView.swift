@@ -47,7 +47,7 @@ public struct ComposeView: View {
     @Environment(TemplateApplier.self) private var applier: TemplateApplier?
     // Optional because the environment value may be absent in previews and
     // tests; `sessionLog?.append(...)` is a no-op when nil. Wired into
-    // BlueSkyTemplatesApp as a long-lived `@State` and injected via
+    // AppRoot as a long-lived `@State` and injected via
     // `.environment(sessionLog)`.
     @Environment(SentSessionLog.self) private var sessionLog: SentSessionLog?
 

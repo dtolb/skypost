@@ -13,7 +13,7 @@ import SwiftUI
 // Default is nil so the environment never silently spins up a real
 // Keychain-touching APIClient for previews, tests, or un-injected
 // subtrees. The App is the single point of injection (see
-// `BlueSkyTemplatesApp`); consumers must handle the optional explicitly.
+// `AppRoot`); consumers must handle the optional explicitly.
 private struct APIClientKey: EnvironmentKey {
     static let defaultValue: APIClient? = nil
 }
@@ -28,7 +28,7 @@ extension EnvironmentValues {
 // Default is nil so previews / tests / un-injected subtrees see "no
 // resolver" rather than a real LPMetadataProvider that would hit the
 // network on every keystroke. The App is the single point of injection
-// (see `BlueSkyTemplatesApp`, Phase F6). `ExternalLinkResolver` is a
+// (see `AppRoot`, Phase F6). `ExternalLinkResolver` is a
 // protocol — not an actor and not `@Observable` — so we use the classic
 // `EnvironmentKey` pattern over `.environment(SomeType.self)`; the
 // existential (`any ExternalLinkResolver`) is the contract Compose
