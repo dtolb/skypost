@@ -109,18 +109,20 @@ public struct SquareCameraView: View {
                     .foregroundStyle(BrandColor.error)
                     .font(.callout)
                     .padding(.horizontal, 16)
+                    .accessibilityLabel(msg)
             }
             Button {
                 session.capture()
             } label: {
-                Circle()
-                    .fill(.white)
-                    .frame(width: 72, height: 72)
-                    .overlay(
-                        Circle()
-                            .stroke(.white.opacity(0.6), lineWidth: 4)
-                            .frame(width: 84, height: 84)
-                    )
+                ZStack {
+                    Circle()
+                        .stroke(.white.opacity(0.6), lineWidth: 4)
+                        .frame(width: 84, height: 84)
+                    Circle()
+                        .fill(.white)
+                        .frame(width: 72, height: 72)
+                }
+                .frame(width: 84, height: 84)
             }
             .disabled(!isShutterEnabled)
             .accessibilityLabel("Take photo")
@@ -179,6 +181,7 @@ public struct SquareCameraView: View {
             Image(systemName: "camera.slash")
                 .font(.system(size: 56))
                 .foregroundStyle(.white.opacity(0.85))
+                .accessibilityHidden(true)
             Text("Camera access is off")
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.white)
@@ -206,6 +209,7 @@ public struct SquareCameraView: View {
             Image(systemName: "camera.metering.unknown")
                 .font(.system(size: 56))
                 .foregroundStyle(.white.opacity(0.85))
+                .accessibilityHidden(true)
             Text("No camera on this device")
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.white)
@@ -224,6 +228,7 @@ public struct SquareCameraView: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 56))
                 .foregroundStyle(BrandColor.error)
+                .accessibilityHidden(true)
             Text(message)
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.white)
