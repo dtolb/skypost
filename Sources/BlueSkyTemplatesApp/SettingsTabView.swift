@@ -56,11 +56,11 @@ public struct SettingsTabView: View {
                         HStack(spacing: 12) {
                             LeadIcon(
                                 systemName: "rectangle.portrait.and.arrow.right",
-                                tint: .red
+                                tint: BrandColor.destructive
                             )
                             .accessibilityHidden(true)
                             Text("Sign out")
-                                .foregroundStyle(.red)
+                                .foregroundStyle(BrandColor.destructive)
                             Spacer()
                         }
                         .contentShape(.rect)

@@ -128,7 +128,7 @@ public struct ComposeView: View {
                         Text(counterLabel)
                             .font(.footnote.monospacedDigit())
                             .foregroundStyle(remaining < 0
-                                ? AnyShapeStyle(.red)
+                                ? AnyShapeStyle(BrandColor.error)
                                 : AnyShapeStyle(.secondary))
                     }
                 }
@@ -156,7 +156,7 @@ public struct ComposeView: View {
                     #if canImport(PhotosUI)
                     if let attachmentError {
                         Label(attachmentError, systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.red)
+                            .foregroundStyle(BrandColor.error)
                             .font(.callout)
                     }
                     #endif
@@ -425,7 +425,7 @@ public struct ComposeView: View {
         case .failed(let message):
             Section {
                 Label(message, systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.red)
+                    .foregroundStyle(BrandColor.error)
             }
         }
     }
