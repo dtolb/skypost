@@ -106,6 +106,11 @@ public struct TemplateListView: View {
     }
 
     private func delete(_ template: Template) {
+        // If the editor was pushed against this template, dismiss it before
+        // the model disappears under the destination view.
+        if navigationTarget == template {
+            navigationTarget = nil
+        }
         modelContext.delete(template)
         try? modelContext.save()
     }
