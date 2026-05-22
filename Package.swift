@@ -20,6 +20,7 @@ let package = Package(
         .library(name: "DesignSystem",       targets: ["DesignSystem"]),
         .library(name: "Auth",               targets: ["Auth"]),
         .library(name: "Bluesky",            targets: ["Bluesky"]),
+        .library(name: "Camera",             targets: ["Camera"]),
         .library(name: "Models",             targets: ["Models"]),
         .library(name: "Templates",          targets: ["Templates"]),
         .library(name: "Compose",            targets: ["Compose"]),
@@ -60,6 +61,17 @@ let package = Package(
                 "AppLogging",
                 "Models",
                 .product(name: "ATProtoKit", package: "ATProtoKit"),
+            ]
+        ),
+
+        // ── Camera — AVFoundation capture surface, iOS-only at runtime. ─
+        // Cross-platform pure helpers (CenterSquareCrop, permission resolver)
+        // compile on macOS so `swift test` exercises them in CI.
+        .target(
+            name: "Camera",
+            dependencies: [
+                "AppLogging",
+                "Models",
             ]
         ),
 
@@ -127,6 +139,10 @@ let package = Package(
         .testTarget(
             name: "BlueskyTests",
             dependencies: ["Bluesky"]
+        ),
+        .testTarget(
+            name: "CameraTests",
+            dependencies: ["Camera"]
         ),
         .testTarget(
             name: "DesignSystemTests",
