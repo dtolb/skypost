@@ -47,7 +47,7 @@ public struct ComposeView: View {
     @Environment(TemplateApplier.self) private var applier: TemplateApplier?
     // Optional because the environment value may be absent in previews and
     // tests; `sessionLog?.append(...)` is a no-op when nil. Wired into
-    // BlueSkyTemplatesApp as a long-lived `@State` and injected via
+    // AppRoot as a long-lived `@State` and injected via
     // `.environment(sessionLog)`.
     @Environment(SentSessionLog.self) private var sessionLog: SentSessionLog?
 
@@ -128,7 +128,7 @@ public struct ComposeView: View {
                         Text(counterLabel)
                             .font(.footnote.monospacedDigit())
                             .foregroundStyle(remaining < 0
-                                ? AnyShapeStyle(.red)
+                                ? AnyShapeStyle(BrandColor.error)
                                 : AnyShapeStyle(.secondary))
                     }
                 }
@@ -156,7 +156,7 @@ public struct ComposeView: View {
                     #if canImport(PhotosUI)
                     if let attachmentError {
                         Label(attachmentError, systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.red)
+                            .foregroundStyle(BrandColor.error)
                             .font(.callout)
                     }
                     #endif
@@ -170,9 +170,10 @@ public struct ComposeView: View {
 
                 // Hide the Link section entirely when idle; rendering an
                 // empty Section still draws its header chrome.
-                if case .idle = linkState {
+                switch linkState {
+                case .idle:
                     EmptyView()
-                } else {
+                case .loading, .loaded, .failed:
                     Section {
                         linkSectionContent
                     } header: {
@@ -258,6 +259,7 @@ public struct ComposeView: View {
             // tab), but still load-bearing for cold-launch-on-Templates-tab
             // flows and for in-Compose picker selections that race
             // ComposeView's first body evaluation.
+            // consume() below re-triggers this (pending: n → nil); guard short-circuits.
             .onChange(of: applier?.pending?.tick, initial: true) { _, newTick in
                 guard let newTick,
                       let pending = applier?.pending,
@@ -425,7 +427,7 @@ public struct ComposeView: View {
         case .failed(let message):
             Section {
                 Label(message, systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.red)
+                    .foregroundStyle(BrandColor.error)
             }
         }
     }
@@ -538,10 +540,7 @@ public struct ComposeView: View {
         // Phase F: pass the loaded card through. APIClient enforces the
         // exclusive-embed-slot rule (images win) and falls through to the
         // external-only path when images is empty.
-        let card: ExternalLinkCard? = {
-            if case .loaded(let c) = linkState { return c }
-            return nil
-        }()
+        let card: ExternalLinkCard? = if case .loaded(let c) = linkState { c } else { nil }
         editorFocused = false
         send = .sending
         Task {
@@ -608,6 +607,10 @@ public struct ComposeView: View {
         #elseif os(macOS)
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(string, forType: .string)
+        #else
+        // visionOS/watchOS/etc. — no clipboard surface today. Intentional no-op;
+        // revisit if a new target ships.
+        _ = string
         #endif
     }
 }
@@ -742,7 +745,6 @@ private struct TemplatePickerLabel: View {
         } label: {
             HStack(spacing: 12) {
                 LeadIcon(systemName: "doc.text", tint: BrandColor.tint)
-                    .accessibilityHidden(true)
                 Text("Template")
                     .foregroundStyle(.primary)
                 Spacer()
@@ -768,4 +770,14 @@ private struct TemplatePickerLabel: View {
 #Preview("Compose — idle") {
     ComposeView()
     // No apiClient injected — Send stays disabled via the api-nil guard.
+}
+
+#Preview("Compose — with templates") {
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(for: Template.self, configurations: config)
+    let context = ModelContext(container)
+    context.insert(Template(title: "Daily standup", body: "What did you ship?", hashtags: ["work"]))
+    context.insert(Template(title: "Hello bluesky", body: "Hi from the templates app.", hashtags: ["bsky"]))
+    return ComposeView()
+        .modelContainer(container)
 }

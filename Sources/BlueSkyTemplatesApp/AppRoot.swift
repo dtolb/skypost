@@ -16,7 +16,7 @@ import Compose
 import DesignSystem
 import Templates
 
-public struct BlueSkyTemplatesApp: App {
+public struct AppRoot: App {
 
     // One APIClient for the whole process — AuthService and the Compose
     // post path share it (same Keychain UUID, same session state).

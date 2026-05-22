@@ -44,7 +44,7 @@ public struct TemplateListView: View {
                         .padding(.horizontal, 16)
                         .padding(.top, 8)
                     }
-                    .background(pageBackground)
+                    .background(BrandColor.pageBackground)
                 } else {
                     List {
                         ForEach(templates) { template in
@@ -106,19 +106,13 @@ public struct TemplateListView: View {
     }
 
     private func delete(_ template: Template) {
+        // If the editor was pushed against this template, dismiss it before
+        // the model disappears under the destination view.
+        if navigationTarget == template {
+            navigationTarget = nil
+        }
         modelContext.delete(template)
         try? modelContext.save()
-    }
-
-    /// Grouped-form-style page background. On iOS this is the dynamic
-    /// `systemGroupedBackground`; on macOS we approximate with a light
-    /// gray that contrasts with `Color.white` card surfaces.
-    private var pageBackground: Color {
-        #if canImport(UIKit)
-        Color(uiColor: .systemGroupedBackground)
-        #else
-        Color(white: 0.95)
-        #endif
     }
 }
 
@@ -161,6 +155,7 @@ private struct TemplateRow: View {
 #Preview("Templates — empty") {
     TemplateListView()
         .modelContainer(makePreviewContainer(populated: false))
+        .environment(TemplateApplier())
 }
 
 @MainActor

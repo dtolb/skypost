@@ -2,6 +2,7 @@
 
 import SwiftUI
 import Auth
+import DesignSystem
 
 public struct RootView: View {
     @Environment(AuthService.self) private var auth
@@ -53,7 +54,7 @@ private struct ErrorView: View {
         VStack(spacing: 16) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 48))
-                .foregroundStyle(.red)
+                .foregroundStyle(BrandColor.error)
             Text("Something went wrong")
                 .font(.title3.weight(.semibold))
             Text(error.localizedDescription)

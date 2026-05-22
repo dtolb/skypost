@@ -1,8 +1,8 @@
 # Kanban — BlueSkyTemplates v2 implementation
 
-> **Handoff state — 2026-05-21:** Phases A → H shipped end-to-end. Phase H is the Mantis design-system restyle — DesignSystem module grown from a placeholder into a small primitive library (BrandColor / BrandGradient / BrandCard / BrandSectionHeader / LeadIcon / WelcomeHero / BrandTypography), a new HomeView tab driven by an in-memory SentSessionLog, and all five existing screens re-skinned with Mantis tokens while preserving every existing behavior. 95/95 Swift Testing cases on Phase H tip (4 new in `DesignSystemTests`, 3 new in `SentSessionLogTests`, 4 new in `HomeActionRoutingTests` from the new BlueSkyTemplatesAppTests target). Phase G1's `selectedTab = .compose` cold-launch default preserved. UI lifecycle still covered by the deferred XCUITest backlog. Sim verification deferred per the Phase F headless-Simulator gap.
+> **Handoff state — 2026-05-21:** Phases A → I shipped end-to-end. Phase I is the cleanup sprint — knocked down 4 plan-numbered review items (#8 struct rename → `AppRoot`, #10 `@MainActor` justification comments, #13 real AppIcon shipped from user-supplied `bluesky-icon.png`, #15 semantic-color migration with new `BrandColor.destructive`/`.error`), 4 cross-cutting DS/UX nits (LeadIcon a11y redundancy, `BrandColor.pageBackground` promotion, delete-while-edited guard, Home "New template" a11y label), and 5 per-phase carry-forward batches (Phase B/D ComposeView consolidation, Phase C ImageProcessor dict-key alignment, Phase E/F test polish, Phase F link-state readability, Phase G1 preview/type polish). 98/98 Swift Testing cases on Phase I tip (+3 from baseline: 2 BrandColor role-color tests + 1 pageBackground smoke). No user-visible behavior change except the new app icon. Sim verification deferred per the Phase F headless-Simulator gap.
 
-**Current branch:** `feature/phase-h-mantis-restyle` (tip `51c5e40`)
+**Current branch:** `feature/phase-i-cleanup` (tip `b55aa2f`)
 **Open MRs:**
 - A+B: <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/2>
 - C (stacked on A+B): <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/3>
@@ -141,6 +141,48 @@ reviewer → code-quality reviewer → mark done.
 - G1.4 nit — `delete(_ template:)` in `TemplateListView` does not nil out `navigationTarget` if it equals the deleted template. Narrow UI race (would require deletion while editor is pushed); one-line defensive guard recommended.
 - G1.4 nit — empty-state `#Preview("Templates — empty")` does not inject `TemplateApplier`; benign because `ContentUnavailableView` has no apply path, but pattern-inconsistent with the populated preview.
 - G1.5 nit — none surfaced; pure deletion change.
+
+## Phase I — Cleanup sprint ✅
+
+**Spec:** [`docs/specs/2026-05-21-phase-i-cleanup-design.md`](docs/specs/2026-05-21-phase-i-cleanup-design.md)
+**Plan:** [`docs/plans/2026-05-21-phase-i-cleanup.md`](docs/plans/2026-05-21-phase-i-cleanup.md)
+**Branch:** `feature/phase-i-cleanup` (tip `b55aa2f`)
+
+### Done
+
+- ✅ **I.A1** — Rename `BlueSkyTemplatesApp` struct → `AppRoot` (plan #8) (commit `bcfe952`; 95/95 tests, xcodebuild green)
+- ✅ **I.A2** — Document load-bearing `@MainActor` annotations on `AuthService` + `AppRouter` (plan #10) (commit `80408d9`; 95/95)
+- ✅ **I.A3** — `BrandColor.destructive` + `BrandColor.error` + 7-site `.red` migration (plan #15) (commit `83b2132`; 97/97, +2 DesignSystemTests)
+- ✅ **I.A4** — Real AppIcon shipped from user-supplied `bluesky-icon.png` (plan #13, pulled back from skip-list) (commit `c3e9127`; 97/97)
+- ✅ **I.B1** — Drop redundant `LeadIcon(...).accessibilityHidden(true)` call-sites (SettingsTabView ×3, ComposeView ×1) (commit `826b930`; 97/97)
+- ✅ **I.B2** — Promote `Color(white: 0.95)` macOS fallback → `BrandColor.pageBackground` primitive (commit `8c25750`; 98/98, +1 DesignSystemTests)
+- ✅ **I.B3** — `TemplateListView.delete(_:)` clears `navigationTarget` on self-delete (G1.4 nit) (commit `5cb6bc4`; 98/98)
+- ✅ **I.B4** — HomeView quick-action "New" → "New template" explicit a11y label (H3 nit) (commit `e21b8e3`; 98/98)
+- ✅ **I.C1** — Phase B/D ComposeView consolidation: `copy(_:)` `#else` no-op + `.onChange` `consume()`-retrigger comment (commit `9ba112a`; 98/98). 2 of 4 sub-items shipped; api-nil message + `self.` style verified already-clean before plan-write.
+- ✅ **I.C2** — Phase C ImageProcessor: test fixture CFString dict-key style aligned with production (commit `551d698`; 98/98). 1 of 3 sub-items shipped; explicit qualities ladder + WHY-leading zero-count guard comment already in place from prior phases.
+- ✅ **I.C3** — Phase E/F test polish: `makeFixtureJPEG` nested as `static` on `ImageProcessorTests`, `@Suite` rename `"ComposeText template application"` → `"ComposeText applyTemplate"`, F1 test rename to lower-camel (commit `a6e3c07`; 98/98). 3 of 4 sub-items shipped; `inMemoryHashtagContainer` already removed in a prior phase.
+- ✅ **I.C4** — Phase F ComposeView link-state readability: `if case .idle else` inversion → `switch linkState`; `submit()` IIFE → if-expression binding (commit `4307ab5`; 98/98)
+- ✅ **I.C5** — Phase G1 preview/type polish: `TemplatePickerOption.id: Self { self }` (drop AnyHashable box), new populated `#Preview("Compose — with templates")`, `TemplateApplier` injected into empty-state `#Preview` in `TemplateListView` (commit `b55aa2f`; 98/98)
+- ✅ **I-review** — whole-phase spec-compliance + code-quality reviewer subagents both ✅ APPROVED FOR MERGE. Skip list respected; no out-of-scope creep.
+
+### Deferred-cosmetic nits (Phase I)
+
+*From code-quality whole-phase review:*
+- Extract a shared `PreviewSupport` helper (or sibling `TemplatesPreviewKit`) exposing `makePreviewContainer(populated:)` — currently `ComposeView` and `TemplateListView` both build in-memory `ModelContainer`s independently. Compose's I.C5 populated `#Preview` inlines the setup because `TemplateListView.makePreviewContainer` is `private`. Worth extracting once a third preview-bearing view lands.
+- Seed-data duplication: the two preview seed `Template` titles overlap across files but with slightly diverged body copy ("What did you ship?" vs "What did you ship? What's blocked?"). Consolidate once `PreviewSupport` exists.
+- `HomeView.actionCell`'s new optional `accessibilityLabel:` parameter has exactly one explicit-override caller today. If a fourth differentiator lands (e.g., per-cell tint, per-cell badge), refactor before adding more optional parameters.
+- `BrandColor.pageBackground` is `var` (computed) — every access reconstructs `Color(uiColor:)`. Negligible cost today; memoize if it ever surfaces in a hot path.
+
+*Paper-trail nit:*
+- I.C1 commit `9ba112a`'s message lists all 4 sub-items as changes when only 2 actually shipped; the dispatch handed a verbatim HEREDOC. Subsequent dispatches (I.C2, I.C3) caught the same pattern proactively and adjusted the commit body. Not amending — `git blame` reaches the right files regardless.
+
+### Notes
+
+- `selectedTab` default stays `.compose` — Phase G1 cold-launch guarantee preserved.
+- No user-visible behavior change except the AppIcon swap (placeholder 1024² → Bluesky butterfly on shutter bezel).
+- 98/98 tests passing on every commit; `xcodebuild` against iPhone 17 simulator green throughout.
+- Sim verification deferred to Dan (Simulator headless on this Mac per the F-sim memory).
+- Spec's "Out of scope" items (test-quality additions from review-fixes plan, architecture.md `§7.2/§8.4/§9.4` updates) intentionally NOT included — track separately if desired.
 
 ## Phase H — Mantis design-system restyle ✅
 

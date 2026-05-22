@@ -75,7 +75,7 @@ public struct HomeView: View {
                 }
                 .padding(.vertical, 8)
             }
-            .background(Self.pageBackground)
+            .background(BrandColor.pageBackground)
             .navigationTitle("Home")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
@@ -111,14 +111,19 @@ public struct HomeView: View {
             spacing: 8
         ) {
             actionCell(systemName: "square.and.pencil", title: "Compose",   action: .compose)
-            actionCell(systemName: "plus",              title: "New",       action: .newTemplate)
+            actionCell(systemName: "plus",              title: "New",       action: .newTemplate, accessibilityLabel: "New template")
             actionCell(systemName: "doc.text",          title: "Templates", action: .templates)
             actionCell(systemName: "gearshape",         title: "Settings",  action: .settings)
         }
         .padding(.horizontal, 16)
     }
 
-    private func actionCell(systemName: String, title: String, action: HomeAction) -> some View {
+    private func actionCell(
+        systemName: String,
+        title: String,
+        action: HomeAction,
+        accessibilityLabel: String? = nil
+    ) -> some View {
         Button {
             handleHomeAction(
                 action,
@@ -137,7 +142,7 @@ public struct HomeView: View {
             .background(Color.white, in: .rect(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(title)
+        .accessibilityLabel(accessibilityLabel ?? title)
     }
 
     @ViewBuilder
@@ -207,19 +212,6 @@ public struct HomeView: View {
         .accessibilityLabel(
             "Sent: \(entry.preview). \(entry.createdAt.formatted(.relative(presentation: .named))). Tap to copy URI."
         )
-    }
-
-    // MARK: - Cross-platform helpers
-
-    /// Grouped-form-style page background. On iOS this is the dynamic
-    /// `systemGroupedBackground`; on macOS we approximate with a light
-    /// gray that contrasts with `Color.white` card surfaces.
-    private static var pageBackground: Color {
-        #if canImport(UIKit)
-        return Color(uiColor: .systemGroupedBackground)
-        #else
-        return Color(white: 0.95)
-        #endif
     }
 
     // MARK: - Copy

@@ -30,12 +30,32 @@ struct BrandColorTests {
     }
 
     @Test
+    func destructiveMatchesDustRed6() {
+        // BrandColor.destructive == Mantis dust-red-6 (#f5222d) today.
+        #expect(BrandColor._destructiveRGB == BrandColor._expenseRedRGB)
+    }
+
+    @Test
+    func errorMatchesDustRed6() {
+        // BrandColor.error == Mantis dust-red-6 today. May diverge later
+        // if we adopt a softer error-vs-destructive distinction; the tuple
+        // assertion guards intent.
+        #expect(BrandColor._errorRGB == BrandColor._expenseRedRGB)
+    }
+
+    @Test
     func deterministicColorForStringIsStableWithinProcess() {
         // `String.hashValue` is process-stable (re-seeded each launch);
         // within a single process two calls with the same key must agree.
         let a = BrandColor.deterministicColor(for: "Daily standup")
         let b = BrandColor.deterministicColor(for: "Daily standup")
         #expect(a == b)
+    }
+
+    @Test func pageBackgroundIsNonClear() {
+        // Smoke: BrandColor.pageBackground resolves to *some* color,
+        // not Color.clear. Cross-platform value (UIKit vs macOS fallback).
+        #expect(BrandColor.pageBackground != Color.clear)
     }
 
     @Test

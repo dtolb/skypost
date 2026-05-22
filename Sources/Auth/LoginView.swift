@@ -129,7 +129,7 @@ public struct LoginView: View {
             if let message = errorMessage {
                 Section {
                     Label(message, systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.red)
+                        .foregroundStyle(BrandColor.error)
                         .font(.callout)
                 }
             }

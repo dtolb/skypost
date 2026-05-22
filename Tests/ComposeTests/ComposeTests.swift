@@ -51,7 +51,7 @@ struct ComposeTextTests {
     }
 }
 
-@Suite("ComposeText template application")
+@Suite("ComposeText applyTemplate")
 struct ComposeTextTemplateApplicationTests {
 
     @Test
@@ -90,7 +90,7 @@ struct ImageProcessorTests {
 
     @Test
     func tinyImageReturnsUnchangedDimensions() throws {
-        let fixture = try makeFixtureJPEG(width: 800, height: 600)
+        let fixture = try Self.makeFixtureJPEG(width: 800, height: 600)
         let result = try ImageProcessor.encodeJPEG(sourceData: fixture)
         #expect(result.pixelWidth == 800)
         #expect(result.pixelHeight == 600)
@@ -98,21 +98,21 @@ struct ImageProcessorTests {
 
     @Test
     func tallImageGetsDownsampledToMaxLongerEdge() throws {
-        let fixture = try makeFixtureJPEG(width: 4000, height: 500)
+        let fixture = try Self.makeFixtureJPEG(width: 4000, height: 500)
         let result = try ImageProcessor.encodeJPEG(sourceData: fixture)
         #expect(max(result.pixelWidth, result.pixelHeight) <= 2048)
     }
 
     @Test
     func largeImageStaysUnderOneMegabyteAfterEncode() throws {
-        let fixture = try makeFixtureJPEG(width: 4000, height: 4000)
+        let fixture = try Self.makeFixtureJPEG(width: 4000, height: 4000)
         let result = try ImageProcessor.encodeJPEG(sourceData: fixture)
         #expect(result.data.count <= 1_000_000)
     }
 
     @Test
     func respectCustomMaxBytesArgument() throws {
-        let fixture = try makeFixtureJPEG(width: 4000, height: 4000)
+        let fixture = try Self.makeFixtureJPEG(width: 4000, height: 4000)
         let result = try ImageProcessor.encodeJPEG(sourceData: fixture, maxBytes: 500_000)
         #expect(result.data.count <= 500_000)
     }
@@ -127,10 +127,51 @@ struct ImageProcessorTests {
 
     @Test
     func aspectRatioPreservedAfterDownsample() throws {
-        let fixture = try makeFixtureJPEG(width: 3000, height: 1500)
+        let fixture = try Self.makeFixtureJPEG(width: 3000, height: 1500)
         let result = try ImageProcessor.encodeJPEG(sourceData: fixture)
         let ratio = Double(result.pixelWidth) / Double(result.pixelHeight)
         #expect(abs(ratio - 2.0) <= 0.02)
+    }
+
+    /// Synthetic JPEG filled with random RGB noise so JPEG compression
+    /// actually does work; a flat color compresses to ~3 KB regardless of
+    /// dimensions and would defeat the large-image cap tests.
+    static func makeFixtureJPEG(width: Int, height: Int) throws -> Data {
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let ctx = CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        ) else { throw FixtureError.cannotCreateContext }
+
+        var rng = SystemRandomNumberGenerator()
+        if let buffer = ctx.data {
+            let byteCount = ctx.bytesPerRow * height
+            let ptr = buffer.bindMemory(to: UInt8.self, capacity: byteCount)
+            for i in 0..<byteCount { ptr[i] = UInt8.random(in: 0...255, using: &rng) }
+        }
+        guard let cgImage = ctx.makeImage() else { throw FixtureError.cannotMakeImage }
+        let output = NSMutableData()
+        guard let dest = CGImageDestinationCreateWithData(
+            output, "public.jpeg" as CFString, 1, nil
+        ) else { throw FixtureError.cannotCreateDestination }
+        let options: [CFString: Any] = [
+            kCGImageDestinationLossyCompressionQuality: 0.95 as CFNumber,
+        ]
+        CGImageDestinationAddImage(dest, cgImage, options as CFDictionary)
+        guard CGImageDestinationFinalize(dest) else { throw FixtureError.cannotFinalize }
+        return output as Data
+    }
+
+    enum FixtureError: Error {
+        case cannotCreateContext
+        case cannotMakeImage
+        case cannotCreateDestination
+        case cannotFinalize
     }
 }
 
@@ -179,7 +220,7 @@ struct ComposeAttachmentTests {
 /// `ImageProcessor.encodeJPEG` — no mocks, exercises the same encode path
 /// the production composer uses.
 private func makeTinyAttachment(altText: String = "") throws -> ComposeAttachment {
-    let fixture = try makeFixtureJPEG(width: 1, height: 1)
+    let fixture = try ImageProcessorTests.makeFixtureJPEG(width: 1, height: 1)
     let encoded = try ImageProcessor.encodeJPEG(sourceData: fixture, maxBytes: 100_000)
     return ComposeAttachment(
         jpegData: encoded.data,
@@ -187,47 +228,6 @@ private func makeTinyAttachment(altText: String = "") throws -> ComposeAttachmen
         pixelHeight: encoded.pixelHeight,
         altText: altText
     )
-}
-
-
-/// Synthetic JPEG filled with random RGB noise so JPEG compression
-/// actually does work; a flat color compresses to ~3 KB regardless of
-/// dimensions and would defeat the large-image cap tests.
-private func makeFixtureJPEG(width: Int, height: Int) throws -> Data {
-    let colorSpace = CGColorSpaceCreateDeviceRGB()
-    guard let ctx = CGContext(
-        data: nil,
-        width: width,
-        height: height,
-        bitsPerComponent: 8,
-        bytesPerRow: 0,
-        space: colorSpace,
-        bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
-    ) else { throw FixtureError.cannotCreateContext }
-
-    var rng = SystemRandomNumberGenerator()
-    if let buffer = ctx.data {
-        let byteCount = ctx.bytesPerRow * height
-        let ptr = buffer.bindMemory(to: UInt8.self, capacity: byteCount)
-        for i in 0..<byteCount { ptr[i] = UInt8.random(in: 0...255, using: &rng) }
-    }
-    guard let cgImage = ctx.makeImage() else { throw FixtureError.cannotMakeImage }
-    let output = NSMutableData()
-    guard let dest = CGImageDestinationCreateWithData(
-        output, "public.jpeg" as CFString, 1, nil
-    ) else { throw FixtureError.cannotCreateDestination }
-    CGImageDestinationAddImage(dest, cgImage, [
-        kCGImageDestinationLossyCompressionQuality as String: 0.95 as CFNumber
-    ] as CFDictionary)
-    guard CGImageDestinationFinalize(dest) else { throw FixtureError.cannotFinalize }
-    return output as Data
-}
-
-private enum FixtureError: Error {
-    case cannotCreateContext
-    case cannotMakeImage
-    case cannotCreateDestination
-    case cannotFinalize
 }
 
 @Suite("URLDetector")
@@ -266,7 +266,7 @@ struct URLDetectorTests {
     }
 
     @Test
-    func URLAdjacentToPunctuationReturnsTrimmedURL() {
+    func urlAdjacentToPunctuationReturnsTrimmedURL() {
         let url = URLDetector.firstURL(in: "visit https://a.com.")
         #expect(url?.host == "a.com")
         #expect(url?.absoluteString.hasSuffix(".") == false)

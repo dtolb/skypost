@@ -6,6 +6,10 @@
 
 import SwiftUI
 
+#if canImport(UIKit)
+import UIKit
+#endif
+
 public enum BrandColor {
 
     /// Mantis primary tint — Ant Design `blue-6` = `#1677ff`.
@@ -29,6 +33,38 @@ public enum BrandColor {
         blue: _expenseRedRGB.blue
     )
 
+    /// Destructive-action role color. Sign-out, delete, irreversible affordances.
+    /// Same hue as `expenseRed` today; named separately so a future fork doesn't
+    /// require ripping out call-sites.
+    public static let destructive: Color = Color(
+        red: _destructiveRGB.red,
+        green: _destructiveRGB.green,
+        blue: _destructiveRGB.blue
+    )
+
+    /// Error-message role color. Inline error rows, failure copy.
+    /// Same hue as `expenseRed` today; named separately so a future softer
+    /// error tint can land without rewriting consumers.
+    public static let error: Color = Color(
+        red: _errorRGB.red,
+        green: _errorRGB.green,
+        blue: _errorRGB.blue
+    )
+
+    /// Grouped-form-style page background. On iOS this is the dynamic
+    /// `systemGroupedBackground`; on macOS we approximate with a light
+    /// gray that contrasts with `Color.white` card surfaces.
+    ///
+    /// `var` rather than `let` because `Color(uiColor:)` is not a
+    /// compile-time constant — it must be evaluated at access time.
+    public static var pageBackground: Color {
+        #if canImport(UIKit)
+        Color(uiColor: .systemGroupedBackground)
+        #else
+        Color(white: 0.95)
+        #endif
+    }
+
     // MARK: - Internal RGB tuples (test surface)
     //
     // SwiftUI `Color` doesn't expose its components cleanly across platforms
@@ -45,6 +81,12 @@ public enum BrandColor {
 
     internal static let _expenseRedRGB: (red: Double, green: Double, blue: Double) =
         (245 / 255, 34 / 255, 45 / 255)
+
+    internal static let _destructiveRGB: (red: Double, green: Double, blue: Double) =
+        _expenseRedRGB
+
+    internal static let _errorRGB: (red: Double, green: Double, blue: Double) =
+        _expenseRedRGB
 
     // MARK: - Deterministic palette
 
