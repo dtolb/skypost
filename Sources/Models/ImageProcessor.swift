@@ -2,38 +2,22 @@ import Foundation
 import ImageIO
 import CoreGraphics
 
-/// Errors thrown by `ImageProcessor.encodeJPEG`. Pure values (no
-/// underlying-error payload) keep tests trivial to assert against.
 public enum ImageProcessorError: Error, Equatable {
     case cannotDecodeSource
     case cannotEncodeJPEG
     case cannotFit(maxBytes: Int)
 }
 
-/// JPEG resize + encode for Bluesky uploads. Cross-platform (ImageIO +
-/// CoreGraphics only, no UIKit/AppKit) so `swift test` can exercise the
-/// resize logic on macOS without a Simulator. Avoids the v1 audit's
-/// deprecated `UIGraphicsBeginImageContextWithOptions` path entirely.
 public struct ImageProcessor {
 
-    /// Downsamples (when the longer edge exceeds `maxLongerEdge`) then
-    /// JPEG-encodes the input, bisecting quality and then halving
-    /// dimensions until the output fits `maxBytes`. Returns the JPEG
-    /// `Data` along with the final pixel dimensions so callers can
-    /// populate `aspectRatio` on Bluesky image embeds.
+    /// Decodes `sourceData` then resize-and-encode-to-fit. Existing PhotosPicker
+    /// entrypoint — behavior unchanged from Phase C.
     public static func encodeJPEG(
         sourceData: Data,
         maxBytes: Int = 1_000_000,
         maxLongerEdge: Int = 2048
     ) throws -> (data: Data, pixelWidth: Int, pixelHeight: Int) {
 
-        // CGImageSourceCreateWithData returns a non-nil handle even for inputs
-        // that have zero usable images (e.g. truncated downloads, container
-        // formats with no decoded frame). Both modes must throw .cannotDecodeSource.
-        //
-        // Downsample with kCGImageSourceCreateThumbnailFromImageAlways = true so
-        // we always re-derive from the source (chained thumbnail-of-thumbnail
-        // would accumulate quantization loss across retry shrinks).
         guard let source = CGImageSourceCreateWithData(sourceData as CFData, nil),
               CGImageSourceGetCount(source) > 0 else {
             throw ImageProcessorError.cannotDecodeSource
@@ -45,8 +29,6 @@ public struct ImageProcessor {
             throw ImageProcessorError.cannotDecodeSource
         }
 
-        // Outer loop halves the longer-edge cap when even quality 0.30 can't
-        // fit; floor at 256px so we can't loop forever on a pathological input.
         let minimumLongerEdge = 256
         var currentMax = maxLongerEdge
 
@@ -58,14 +40,8 @@ public struct ImageProcessor {
                 maxLongerEdge: currentMax
             )
 
-            // Highest-fidelity-that-fits wins; explicit array keeps the
-            // tried quality values bit-exact across runs.
-            let qualities: [Double] = [0.85, 0.80, 0.75, 0.70, 0.65, 0.60, 0.55, 0.50, 0.45, 0.40, 0.35, 0.30]
-            for quality in qualities {
-                let data = try encode(cgImage: cgImage, quality: quality)
-                if data.count <= maxBytes {
-                    return (data, cgImage.width, cgImage.height)
-                }
+            if let fitted = try encodeFitting(cgImage: cgImage, maxBytes: maxBytes) {
+                return fitted
             }
 
             currentMax /= 2
@@ -74,13 +50,38 @@ public struct ImageProcessor {
         throw ImageProcessorError.cannotFit(maxBytes: maxBytes)
     }
 
+    /// Encode-to-fit for a CGImage already at its final dimensions. Used by
+    /// the Camera path which produces a cropped CGImage and doesn't need
+    /// the outer `currentMax` halving loop. If the image doesn't fit at the
+    /// lowest tried quality, throws `.cannotFit`.
+    public static func encodeJPEG(
+        cgImage: CGImage,
+        maxBytes: Int = 1_000_000
+    ) throws -> (data: Data, pixelWidth: Int, pixelHeight: Int) {
+        if let fitted = try encodeFitting(cgImage: cgImage, maxBytes: maxBytes) {
+            return fitted
+        }
+        throw ImageProcessorError.cannotFit(maxBytes: maxBytes)
+    }
+
     // MARK: - Internals
 
-    /// Returns a CGImage scaled so its longer edge ≤ `maxLongerEdge`,
-    /// or the original image when it's already small enough. We use
-    /// `CreateThumbnailAtIndex` (rather than drawing into a CGContext)
-    /// because ImageIO can stream-decode at the target size, which is
-    /// dramatically faster on a 4000×4000 source.
+    /// Walks the explicit quality ladder; returns the highest-fidelity-that-fits
+    /// or nil if even quality 0.30 is over the cap.
+    private static func encodeFitting(
+        cgImage: CGImage,
+        maxBytes: Int
+    ) throws -> (data: Data, pixelWidth: Int, pixelHeight: Int)? {
+        let qualities: [Double] = [0.85, 0.80, 0.75, 0.70, 0.65, 0.60, 0.55, 0.50, 0.45, 0.40, 0.35, 0.30]
+        for quality in qualities {
+            let data = try encode(cgImage: cgImage, quality: quality)
+            if data.count <= maxBytes {
+                return (data, cgImage.width, cgImage.height)
+            }
+        }
+        return nil
+    }
+
     private static func renderImage(
         from source: CGImageSource,
         originalWidth: Int,
@@ -106,7 +107,6 @@ public struct ImageProcessor {
         return thumbnail
     }
 
-    /// JPEG-encodes `cgImage` at the given lossy quality.
     private static func encode(cgImage: CGImage, quality: Double) throws -> Data {
         let buffer = NSMutableData()
         guard let dest = CGImageDestinationCreateWithData(

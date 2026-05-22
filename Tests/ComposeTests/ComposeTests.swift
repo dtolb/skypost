@@ -272,3 +272,107 @@ struct URLDetectorTests {
         #expect(url?.absoluteString.hasSuffix(".") == false)
     }
 }
+
+@Suite("ImageProcessor.encodeJPEG(cgImage:)")
+struct ImageProcessorCGImageOverloadTests {
+
+    @Test
+    func encodesSquareCGImageUnderCap() throws {
+        let img = try makeRedCGImage(side: 512)
+        let result = try ImageProcessor.encodeJPEG(cgImage: img, maxBytes: 1_000_000)
+        #expect(result.data.count <= 1_000_000)
+        #expect(result.pixelWidth == 512)
+        #expect(result.pixelHeight == 512)
+    }
+
+    @Test
+    func roundTripMatchesSourceDataEntrypointForSameSquareInput() throws {
+        let img = try makeRedCGImage(side: 256)
+        let viaCGImage = try ImageProcessor.encodeJPEG(cgImage: img, maxBytes: 1_000_000)
+
+        // Render the same image to PNG bytes and re-run through the existing entrypoint.
+        // For a 256x256 source well under cap, both paths should land at quality 0.85
+        // with matching dims.
+        let pngData = try pngData(from: img)
+        let viaData = try ImageProcessor.encodeJPEG(sourceData: pngData, maxBytes: 1_000_000)
+
+        #expect(viaCGImage.pixelWidth == viaData.pixelWidth)
+        #expect(viaCGImage.pixelHeight == viaData.pixelHeight)
+    }
+
+    @Test
+    func tightCapTriggersQualityBisectAndStillFits() throws {
+        // 1024x1024 of high-frequency noise won't fit at quality 0.85; the bisect
+        // must walk down. Caller is OK getting back data slightly under cap.
+        let img = try makeNoisyCGImage(side: 1024)
+        let result = try ImageProcessor.encodeJPEG(cgImage: img, maxBytes: 200_000)
+        #expect(result.data.count <= 200_000)
+        #expect(result.pixelWidth == 1024)
+        #expect(result.pixelHeight == 1024)
+    }
+}
+
+// MARK: - Fixture helpers for ImageProcessor CGImage overload tests
+
+private func makeRedCGImage(side: Int) throws -> CGImage {
+    try makeFilledCGImage(width: side, height: side, fillRGB: (1, 0, 0))
+}
+
+private func makeNoisyCGImage(side: Int) throws -> CGImage {
+    let colorSpace = CGColorSpaceCreateDeviceRGB()
+    let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+    let bytesPerRow = side * 4
+    var bytes = [UInt8](repeating: 0, count: side * bytesPerRow)
+    // Deterministic pseudo-random fill — varied enough to defeat JPEG run-length compression.
+    var seed: UInt32 = 0xDEADBEEF
+    for i in 0..<bytes.count {
+        seed = seed &* 1_664_525 &+ 1_013_904_223
+        bytes[i] = UInt8(seed & 0xFF)
+    }
+    let provider = CGDataProvider(data: Data(bytes) as CFData)!
+    let img = CGImage(
+        width: side,
+        height: side,
+        bitsPerComponent: 8,
+        bitsPerPixel: 32,
+        bytesPerRow: bytesPerRow,
+        space: colorSpace,
+        bitmapInfo: bitmapInfo,
+        provider: provider,
+        decode: nil,
+        shouldInterpolate: false,
+        intent: .defaultIntent
+    )!
+    return img
+}
+
+private func makeFilledCGImage(width: Int, height: Int, fillRGB: (CGFloat, CGFloat, CGFloat)) throws -> CGImage {
+    let colorSpace = CGColorSpaceCreateDeviceRGB()
+    let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+    let bytesPerRow = width * 4
+    guard let ctx = CGContext(
+        data: nil,
+        width: width,
+        height: height,
+        bitsPerComponent: 8,
+        bytesPerRow: bytesPerRow,
+        space: colorSpace,
+        bitmapInfo: bitmapInfo.rawValue
+    ) else {
+        throw NSError(domain: "fixture", code: 1)
+    }
+    ctx.setFillColor(red: fillRGB.0, green: fillRGB.1, blue: fillRGB.2, alpha: 1)
+    ctx.fill(CGRect(x: 0, y: 0, width: width, height: height))
+    guard let image = ctx.makeImage() else { throw NSError(domain: "fixture", code: 2) }
+    return image
+}
+
+private func pngData(from cgImage: CGImage) throws -> Data {
+    let buffer = NSMutableData()
+    guard let dest = CGImageDestinationCreateWithData(buffer, "public.png" as CFString, 1, nil) else {
+        throw NSError(domain: "fixture", code: 3)
+    }
+    CGImageDestinationAddImage(dest, cgImage, nil)
+    guard CGImageDestinationFinalize(dest) else { throw NSError(domain: "fixture", code: 4) }
+    return buffer as Data
+}
