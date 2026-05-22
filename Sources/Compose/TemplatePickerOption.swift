@@ -19,12 +19,7 @@ public enum TemplatePickerOption: Identifiable, Hashable, Sendable {
     case none
     case template(PersistentIdentifier, title: String)
 
-    public var id: AnyHashable {
-        switch self {
-        case .none:                            return AnyHashable("none")
-        case .template(let pid, _):            return AnyHashable(pid)
-        }
-    }
+    public var id: Self { self }
 
     public var menuTitle: String {
         switch self {

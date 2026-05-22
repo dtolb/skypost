@@ -771,3 +771,13 @@ private struct TemplatePickerLabel: View {
     ComposeView()
     // No apiClient injected — Send stays disabled via the api-nil guard.
 }
+
+#Preview("Compose — with templates") {
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(for: Template.self, configurations: config)
+    let context = ModelContext(container)
+    context.insert(Template(title: "Daily standup", body: "What did you ship?", hashtags: ["work"]))
+    context.insert(Template(title: "Hello bluesky", body: "Hi from the templates app.", hashtags: ["bsky"]))
+    return ComposeView()
+        .modelContainer(container)
+}

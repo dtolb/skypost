@@ -155,6 +155,7 @@ private struct TemplateRow: View {
 #Preview("Templates — empty") {
     TemplateListView()
         .modelContainer(makePreviewContainer(populated: false))
+        .environment(TemplateApplier())
 }
 
 @MainActor
