@@ -18,6 +18,9 @@ public struct ImageProcessor {
         maxLongerEdge: Int = 2048
     ) throws -> (data: Data, pixelWidth: Int, pixelHeight: Int) {
 
+        // CGImageSourceCreateWithData returns a non-nil handle even for inputs
+        // that have zero usable images (e.g. truncated downloads, container
+        // formats with no decoded frame). Both modes must throw .cannotDecodeSource.
         guard let source = CGImageSourceCreateWithData(sourceData as CFData, nil),
               CGImageSourceGetCount(source) > 0 else {
             throw ImageProcessorError.cannotDecodeSource
@@ -32,6 +35,8 @@ public struct ImageProcessor {
         let minimumLongerEdge = 256
         var currentMax = maxLongerEdge
 
+        // Outer loop halves the longer-edge cap when even quality 0.30 can't
+        // fit; floor at 256px so we can't loop forever on a pathological input.
         while currentMax >= minimumLongerEdge {
             let cgImage = try renderImage(
                 from: source,
@@ -67,7 +72,7 @@ public struct ImageProcessor {
     // MARK: - Internals
 
     /// Walks the explicit quality ladder; returns the highest-fidelity-that-fits
-    /// or nil if even quality 0.30 is over the cap.
+    /// or nil if even quality 0.30 is over `maxBytes`.
     private static func encodeFitting(
         cgImage: CGImage,
         maxBytes: Int
@@ -96,6 +101,15 @@ public struct ImageProcessor {
             return image
         }
 
+        // Returns a CGImage scaled so its longer edge ≤ `maxLongerEdge`,
+        // or the original image when it's already small enough. We use
+        // `CreateThumbnailAtIndex` (rather than drawing into a CGContext)
+        // because ImageIO can stream-decode at the target size, which is
+        // dramatically faster on a 4000×4000 source.
+        //
+        // Downsample with kCGImageSourceCreateThumbnailFromImageAlways = true so
+        // we always re-derive from the source (chained thumbnail-of-thumbnail
+        // would accumulate quantization loss across retry shrinks).
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceThumbnailMaxPixelSize: maxLongerEdge,
