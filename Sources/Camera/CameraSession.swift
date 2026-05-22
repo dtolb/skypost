@@ -13,7 +13,7 @@
 #if os(iOS)
 
 import Foundation
-import AVFoundation
+@preconcurrency import AVFoundation
 import CoreGraphics
 import ImageIO
 import UIKit
@@ -55,7 +55,13 @@ public final class CameraSession: NSObject {
     }
 
     deinit {
-        interruptionObservers.forEach { NotificationCenter.default.removeObserver($0) }
+        // CameraSession is @MainActor, so its deinit runs on MainActor when held
+        // by a SwiftUI @State (the only intended retainer). assumeIsolated lets
+        // the compiler verify the MainActor access without the property-isolation
+        // diagnostic that Swift 6's nonisolated-by-default deinit triggers.
+        MainActor.assumeIsolated {
+            interruptionObservers.forEach { NotificationCenter.default.removeObserver($0) }
+        }
     }
 
     // MARK: - Lifecycle
