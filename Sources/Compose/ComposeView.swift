@@ -170,9 +170,10 @@ public struct ComposeView: View {
 
                 // Hide the Link section entirely when idle; rendering an
                 // empty Section still draws its header chrome.
-                if case .idle = linkState {
+                switch linkState {
+                case .idle:
                     EmptyView()
-                } else {
+                case .loading, .loaded, .failed:
                     Section {
                         linkSectionContent
                     } header: {
@@ -539,10 +540,7 @@ public struct ComposeView: View {
         // Phase F: pass the loaded card through. APIClient enforces the
         // exclusive-embed-slot rule (images win) and falls through to the
         // external-only path when images is empty.
-        let card: ExternalLinkCard? = {
-            if case .loaded(let c) = linkState { return c }
-            return nil
-        }()
+        let card: ExternalLinkCard? = if case .loaded(let c) = linkState { c } else { nil }
         editorFocused = false
         send = .sending
         Task {
