@@ -216,9 +216,10 @@ private func makeFixtureJPEG(width: Int, height: Int) throws -> Data {
     guard let dest = CGImageDestinationCreateWithData(
         output, "public.jpeg" as CFString, 1, nil
     ) else { throw FixtureError.cannotCreateDestination }
-    CGImageDestinationAddImage(dest, cgImage, [
-        kCGImageDestinationLossyCompressionQuality as String: 0.95 as CFNumber
-    ] as CFDictionary)
+    let options: [CFString: Any] = [
+        kCGImageDestinationLossyCompressionQuality: 0.95 as CFNumber,
+    ]
+    CGImageDestinationAddImage(dest, cgImage, options as CFDictionary)
     guard CGImageDestinationFinalize(dest) else { throw FixtureError.cannotFinalize }
     return output as Data
 }
