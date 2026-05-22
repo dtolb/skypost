@@ -258,14 +258,16 @@ Live 1:1 viewfinder in Compose with Use/Retake review, RotationCoordinator-drive
 
 ### Done
 
-- ✅ **J1.A** — `CameraCapture` AVFoundation session setup: square crop, permission flow, `AVCaptureVideoDataOutput` pipeline
-- ✅ **J1.B** — `CameraPreviewView` UIViewRepresentable + square viewfinder overlay
-- ✅ **J1.C** — Capture + review state machine: `.viewfinder` → `.reviewing(photo)` → Use Photo / Retake
-- ✅ **J1.D** — `RotationCoordinator`-driven EXIF orientation metadata written into captured JPEG
-- ✅ **J1.E** — `CameraButton` in ComposeView wired to camera sheet; disabled at 4-image cap alongside PhotosPicker
-- ✅ **J1.F** — Permission-denied degraded state: "Camera access is off" card with Open Settings link; simulator no-camera card
-- ✅ **J1.G** — Session interruption handling: phone-call banner, session resumes on hang-up
-- ✅ **J1.H** — Manual test plan (docs/ui-test-backlog.md § Phase J1) + kanban entry
+- ✅ **J1.0** — Scaffold `Camera` SPM module + `CameraTests` target
+- ✅ **J1.A** — `CenterSquareCrop` pure CGImage helper (TDD, 5 cases on macOS)
+- ✅ **J1.B** — `ImageProcessor.encodeJPEG(cgImage:)` overload — extract quality-bisect inner loop so the camera path doesn't re-decode (TDD, 3 cases)
+- ✅ **J1.C** — `CameraPermissionResolver` + `CameraPermissionProviding` protocol + `LiveCameraPermissionProvider` (TDD, 5 cases via stub)
+- ✅ **J1.D** — `Log.media` OSLog category + `NSCameraUsageDescription` privacy string in `App/project.yml`
+- ✅ **J1.E** — `CameraSession` `@MainActor @Observable` AVFoundation wrapper: session-queue isolation, `RotationCoordinator`, photo delegate runs crop → encode → `.captured` state
+- ✅ **J1.F** — `CameraPreviewLayer` `UIViewRepresentable` + `SquareCameraView` full-screen sheet (viewfinder, Use/Retake review, denied / unavailable / failed cards)
+- ✅ **J1.F.1 + J1.F.2** — Strict-concurrency refactor surfaced only once the app target consumed Camera: `@preconcurrency import AVFoundation`, `nonisolated let` AV refs, dropped KVO observation (portrait-only app), `MainActor.assumeIsolated` deinit
+- ✅ **J1.G** — Wire trailing camera button + `.sheet { SquareCameraView }` + `ingestCameraCapture` into ComposeView's Images section
+- ✅ **J1.H** — Manual test plan (`docs/ui-test-backlog.md § Phase J1`) + this kanban entry
 
 ## Phase G — sketch (post-Phase-F)
 
