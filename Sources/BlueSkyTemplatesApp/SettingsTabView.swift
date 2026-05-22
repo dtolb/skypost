@@ -28,7 +28,6 @@ public struct SettingsTabView: View {
                 Section {
                     HStack(spacing: 12) {
                         LeadIcon(systemName: "person.fill", tint: BrandColor.tint)
-                            .accessibilityHidden(true)
                         Text("Handle")
                         Spacer()
                         Text(session.handle)
@@ -36,7 +35,6 @@ public struct SettingsTabView: View {
                     }
                     HStack(spacing: 12) {
                         LeadIcon(systemName: "key.fill", tint: .gray)
-                            .accessibilityHidden(true)
                         Text("DID")
                         Spacer()
                         Text(session.did)
@@ -58,7 +56,6 @@ public struct SettingsTabView: View {
                                 systemName: "rectangle.portrait.and.arrow.right",
                                 tint: BrandColor.destructive
                             )
-                            .accessibilityHidden(true)
                             Text("Sign out")
                                 .foregroundStyle(BrandColor.destructive)
                             Spacer()

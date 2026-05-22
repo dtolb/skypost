@@ -742,7 +742,6 @@ private struct TemplatePickerLabel: View {
         } label: {
             HStack(spacing: 12) {
                 LeadIcon(systemName: "doc.text", tint: BrandColor.tint)
-                    .accessibilityHidden(true)
                 Text("Template")
                     .foregroundStyle(.primary)
                 Spacer()
