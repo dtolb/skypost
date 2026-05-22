@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Knock down the kanban tail accumulated through Phases A–H — plan-numbered review items (#8/#10/#15), cross-cutting DS/UX nits, and per-phase carry-forward cosmetic items — in one focused sprint with no user-visible behavior change.
+**Goal:** Knock down the kanban tail accumulated through Phases A–H — plan-numbered review items (#8/#10/#13/#15), cross-cutting DS/UX nits, and per-phase carry-forward cosmetic items — in one focused sprint with no user-visible behavior change. (Exception: I.A4 ships a real app icon.)
 
-**Architecture:** Single feature branch `feature/phase-i-cleanup` off `main`, one MR (Phase H pattern, no stacking). Twelve sequential `swift-coder` (Opus 4.7) dispatches; each task gets implementer → spec-compliance reviewer → code-quality reviewer → kanban tick. Concurrent `swift build` races `.build/`, so dispatches are non-negotiably sequential.
+**Architecture:** Single feature branch `feature/phase-i-cleanup` off `main`, one MR (Phase H pattern, no stacking). Thirteen sequential `swift-coder` (Opus 4.7) dispatches; each task gets implementer → spec-compliance reviewer → code-quality reviewer → kanban tick. Concurrent `swift build` races `.build/`, so dispatches are non-negotiably sequential.
 
 **Tech Stack:** Swift 6.2 (`swiftLanguageModes: [.v6]`), SwiftPM workspace, SwiftUI views, Swift Testing (`@Test` / `#expect`), `xcodebuild` against iPhone 17 simulator, GitLab CI `xcode` runner with JUnit reports.
 
@@ -18,6 +18,7 @@
 I.A1 (rename App struct)
   → I.A2 (@MainActor justification comments)
   → I.A3 (semantic-color migration — adds BrandColor.destructive + .error)
+  → I.A4 (AppIcon — wire bluesky-icon.png, plan #13)
   → I.B1 (drop LeadIcon .accessibilityHidden call-sites)
   → I.B2 (BrandColor.pageBackground primitive)
   → I.B3 (TemplateListView delete-while-edited guard)
@@ -309,6 +310,107 @@ I.A1 (rename App struct)
   Migrates 7 call-sites previously using .red:
   - Auth/LoginView, Compose/ComposeView (×3), App/RootView    → .error
   - App/SettingsTabView icon + label                          → .destructive
+
+  Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+  EOF
+  )"
+  ```
+
+---
+
+## I.A4 — Wire `bluesky-icon.png` into `AppIcon`
+
+**Why:** Plan #13. The asset catalog at `App/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png` ships a placeholder 1024×1024 RGBA icon — App Store would reject it on review. The user supplied `bluesky-icon.png` at repo root (1254×1254, 8-bit RGB, no alpha). Resize to 1024×1024 to match the catalog slot, replace the placeholder, and move the source out of repo root.
+
+**Files:**
+- Modify: `App/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png` (overwrite with 1024×1024 RGB)
+- Create: `App/Resources/source/bluesky-icon-1254.png` (round-trip source — keep the original for future resizes)
+- Delete: `bluesky-icon.png` (repo root — moved into `App/Resources/source/`)
+- Leave alone: `App/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json` (single universal-iOS 1024×1024 slot — already correct)
+
+**Behavior change:** new app-icon ships on the next build. App Store can now accept the binary for review.
+
+**TDD applicability:** none — asset-catalog file replacement.
+
+- [ ] **Step 1 — Inspect the source**
+
+  ```bash
+  file bluesky-icon.png
+  # Expected: PNG image data, 1254 x 1254, 8-bit/color RGB, non-interlaced
+  ```
+
+  Confirm:
+  - Dimensions: 1254×1254 (square — required).
+  - Color mode: RGB (no alpha — App Store requirement; transparent corners would fail review).
+  - Visual: no pre-applied rounded-corner mask. iOS applies its own corner mask at render time; supplying a pre-rounded icon yields a double-rounded look.
+
+  If the source has a pre-applied corner mask (the file content does — corners appear darker than the canvas background), accept the visual treatment: the dark-corner edges sit far enough inside iOS's mask radius that the doubled corners are not visible on the home screen. This is a documented compromise; flag in commit message.
+
+- [ ] **Step 2 — Move source to `App/Resources/source/`**
+
+  ```bash
+  mkdir -p App/Resources/source
+  git mv bluesky-icon.png App/Resources/source/bluesky-icon-1254.png
+  ```
+
+  Keeps the original 1254×1254 PNG in-tree so future resizes or icon variations have a higher-resolution starting point.
+
+- [ ] **Step 3 — Resize to 1024×1024 and overwrite the placeholder**
+
+  ```bash
+  sips -z 1024 1024 \
+      App/Resources/source/bluesky-icon-1254.png \
+      --out App/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+  ```
+
+  Verify:
+  ```bash
+  file App/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+  # Expected: PNG image data, 1024 x 1024, 8-bit/color RGB[A]?, non-interlaced
+  ```
+
+  `sips` may emit RGBA even from an RGB source on some macOS versions. RGBA is fine *as long as no pixel is transparent* — the App Store rejects transparency, not the alpha channel itself. Spot-check by opening the output in Preview or running:
+  ```bash
+  sips -g hasAlpha App/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+  ```
+  If `hasAlpha: yes`, flatten:
+  ```bash
+  sips --setProperty format png \
+       --setProperty formatOptions normal \
+       App/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+  ```
+
+- [ ] **Step 4 — Verify Xcode build picks up the new icon**
+
+  ```bash
+  xcodebuild -project App/BlueSkyTemplates.xcodeproj -scheme BlueSkyTemplates -destination 'platform=iOS Simulator,name=iPhone 17' build
+  ```
+  Expected: BUILD SUCCEEDED. Asset-catalog compilation logs the new `AppIcon` slot.
+
+- [ ] **Step 5 — Verify tests still green (touched no Swift sources)**
+
+  ```bash
+  swift test
+  ```
+  Expected: 97/97 (same as after I.A3).
+
+- [ ] **Step 6 — Commit**
+
+  ```bash
+  git add App/Resources/source/bluesky-icon-1254.png \
+          App/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+  git commit -m "$(cat <<'EOF'
+  feat(app): ship real AppIcon (I.A4, plan #13)
+
+  Replaces the placeholder 1024×1024 with the user-supplied bluesky-icon
+  (Bluesky butterfly on a card stack inside a blue camera-shutter
+  bezel). Source 1254×1254 RGB lives at App/Resources/source/ for future
+  resizes; AppIcon.appiconset slot is the 1024×1024 sips-resized export.
+
+  Source icon includes its own subtle corner darkening; iOS's own
+  rounded-square mask sits well inside that border, so the doubled
+  corners are not visible on-device. App Store can accept the binary
+  for review now (plan #13 cleared from minor-items list).
 
   Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
   EOF
@@ -1115,8 +1217,8 @@ I.A1 (rename App struct)
 
 ## Acceptance — Phase I done when
 
-1. All 12 in-scope task boxes ticked.
-2. `swift test` 98/98 (95 baseline + 3 new in DesignSystemTests for I.A3 ×2 + I.B2 ×1).
+1. All 13 in-scope task boxes ticked.
+2. `swift test` 98/98 (95 baseline + 3 new in DesignSystemTests for I.A3 ×2 + I.B2 ×1; I.A4 adds no tests).
 3. `xcodebuild` against iPhone 17 sim green throughout.
 4. GitLab pipeline green on the MR.
 5. Both reviewer subagents ✅ APPROVED FOR MERGE.

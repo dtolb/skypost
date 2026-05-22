@@ -28,6 +28,7 @@ Three buckets on one branch (`feature/phase-i-cleanup`), one MR against `main`. 
 | I.A1 | #8 | Rename `BlueSkyTemplatesApp` struct to disambiguate from module name. Target name: `AppRoot`. |
 | I.A2 | #10 | Audit `@MainActor` on `AuthService` and `AppRouter` under Swift 6 main-actor-by-default isolation; drop redundant annotations or add `// kept because …` justification. |
 | I.A3 | #15 | Migrate the 5 production `.red` literals (`LoginView:132`, `ComposeView:131/159/428`, `SettingsTabView:59/63`, `RootView:56`) to the appropriate `BrandColor` semantic role. May require introducing `BrandColor.destructive` and/or `BrandColor.error` if `expenseRed` is the wrong semantic for some sites. |
+| I.A4 | #13 | Replace the placeholder `App/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png` with the user-supplied `bluesky-icon.png` (1254×1254 RGB) resized to the 1024×1024 catalog slot. Keep `Contents.json` unchanged (single universal-iOS slot). Move the user-supplied source file out of repo root once consumed (or commit it under `App/Resources/source/` for round-trip). |
 
 ### I-B — Cross-cutting DS/UX nits
 
@@ -57,7 +58,7 @@ These items are tracked elsewhere and intentionally not included in Phase I. Rat
 | Item | Reason |
 |------|--------|
 | Plan #12 — Keychain `errSecDuplicateItem` | Deferred until DPoP / Share Extension actually uses the wrapper. Wrapper is currently unreferenced. |
-| Plan #13 — App icon | Not a code task; needs actual icon-design work and asset-catalog updates. Defer to spec §11 step-5 polish phase. |
+| ~~Plan #13 — App icon~~ | ~~Not a code task; needs actual icon-design work and asset-catalog updates. Defer to spec §11 step-5 polish phase.~~ — **Pulled back in as I.A4 (2026-05-21):** user supplied `bluesky-icon.png`. |
 | E3 — share-icon `square.and.arrow.up` | UX decision (Share Sheet semantic conflict), not cleanup. |
 | E3 — Use Template uses stored body, not `@State` edits | UX decision (auto-save? transient apply? gate?), not cleanup. |
 | F4 — orphaned blob on `createRecord` failure | Bluesky GCs unreferenced blobs; no observable effect. Revisit if PDS quotas show pressure. |
@@ -115,7 +116,7 @@ After every commit: `swift test` + `xcodebuild` against iPhone 17 sim must stay 
 
 ## Success criteria
 
-1. All 12 in-scope tasks ✅ in `kanban.md`.
+1. All 13 in-scope tasks ✅ in `kanban.md`.
 2. `swift test` 95/95 (or matching new count if I.C3 reduces it intentionally).
 3. `xcodebuild` against iPhone 17 sim green throughout.
 4. GitLab pipeline green on the MR.
