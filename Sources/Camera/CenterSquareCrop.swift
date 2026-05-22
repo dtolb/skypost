@@ -12,18 +12,6 @@ public enum CenterSquareCrop {
     /// Returns a square center-crop of `source`. When the source is already
     /// square, returns it unchanged.
     public static func crop(_ source: CGImage) -> CGImage {
-        let width = source.width
-        let height = source.height
-        if width == height { return source }
-
-        let side = min(width, height)
-        let originX = (width - side) / 2
-        let originY = (height - side) / 2
-        let rect = CGRect(x: originX, y: originY, width: side, height: side)
-
-        // CGImage.cropping returns nil only for out-of-bounds rects, which we
-        // construct ourselves to fit. Force-unwrap is safe here; fall back to
-        // the source defensively in case of a future CG behavior change.
-        return source.cropping(to: rect) ?? source
+        CenterAspectCrop.crop(source, aspectRatio: CameraAspectRatio(width: 1, height: 1))
     }
 }

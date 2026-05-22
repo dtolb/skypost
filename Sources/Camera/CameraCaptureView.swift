@@ -1,10 +1,9 @@
-// SquareCameraView — full-screen sheet that owns CameraSession's lifetime.
+// CameraCaptureView — full-screen sheet that owns CameraSession's lifetime.
 //
-// Viewfinder: full-bleed preview with opaque top + bottom letterbox so the
-// visible window is exactly square. Shutter button bottom-center, Cancel
-// top-leading.
-// Review: the captured square photo at full bleed, with Retake + Use Photo.
-// Denied: settings-redirect card. Unavailable: device-has-no-camera card.
+// Viewfinder: full-bleed preview framed to the selected ratio/orientation,
+// with native-style zoom chips and capture controls. Review: captured photo
+// at its actual output aspect, with Retake + Use Photo. Denied/unavailable:
+// focused recovery cards.
 
 #if os(iOS)
 
@@ -13,7 +12,7 @@ import AVFoundation
 import UIKit
 import DesignSystem
 
-public struct SquareCameraView: View {
+public struct CameraCaptureView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var session = CameraSession()
@@ -66,20 +65,22 @@ public struct SquareCameraView: View {
     @ViewBuilder
     private var viewfinder: some View {
         GeometryReader { geo in
-            let side = min(geo.size.width, geo.size.height)
+            let previewSize = session.configuration.previewSize(fitting: geo.size)
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
                 ZStack {
                     CameraPreviewLayer(session: session.session) { previewLayer in
                         session.attachRotationCoordinator(previewLayer: previewLayer)
                     }
-                    .frame(width: side, height: side)
+                    .frame(width: previewSize.width, height: previewSize.height)
                     .clipped()
                 }
                 Spacer(minLength: 0)
             }
             .frame(width: geo.size.width, height: geo.size.height)
             .overlay(alignment: .top) { cancelBar }
+            .overlay(alignment: .top) { modeBar }
+            .overlay(alignment: .bottom) { zoomBar.padding(.bottom, 128) }
             .overlay(alignment: .bottom) { shutterBar }
         }
     }
@@ -100,6 +101,70 @@ public struct SquareCameraView: View {
         }
         .padding(.horizontal, 16)
         .padding(.top, 16)
+    }
+
+    private var modeBar: some View {
+        VStack(spacing: 12) {
+            Picker("Ratio", selection: ratioBinding) {
+                ForEach(CameraCaptureRatio.allCases) { ratio in
+                    Text(ratio.label).tag(ratio)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 220)
+            .accessibilityLabel("Photo ratio")
+
+            HStack(spacing: 8) {
+                ForEach(CameraCaptureOrientation.allCases) { orientation in
+                    Button {
+                        session.selectCaptureOrientation(orientation)
+                    } label: {
+                        Image(systemName: orientation.systemImage)
+                            .font(.body.weight(.semibold))
+                            .frame(width: 42, height: 34)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(session.configuration.orientation == orientation ? .black : .white)
+                    .background(
+                        session.configuration.orientation == orientation
+                            ? AnyShapeStyle(.white)
+                            : AnyShapeStyle(.ultraThinMaterial),
+                        in: Capsule()
+                    )
+                    .accessibilityLabel(orientation.accessibilityLabel)
+                    .accessibilityAddTraits(session.configuration.orientation == orientation ? .isSelected : [])
+                }
+            }
+        }
+        .padding(.top, 64)
+    }
+
+    @ViewBuilder
+    private var zoomBar: some View {
+        if !session.zoomOptions.isEmpty {
+            HStack(spacing: 8) {
+                ForEach(session.zoomOptions) { option in
+                    Button {
+                        session.selectZoomOption(option)
+                    } label: {
+                        Text(option.label)
+                            .font(.caption.weight(.semibold))
+                            .monospacedDigit()
+                            .frame(width: 44, height: 34)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(session.selectedZoomOption == option ? .black : .white)
+                    .background(
+                        session.selectedZoomOption == option
+                            ? AnyShapeStyle(.white)
+                            : AnyShapeStyle(.ultraThinMaterial),
+                        in: Capsule()
+                    )
+                    .accessibilityLabel("Zoom \(option.label)")
+                    .accessibilityAddTraits(session.selectedZoomOption == option ? .isSelected : [])
+                }
+            }
+        }
     }
 
     private var shutterBar: some View {
@@ -140,19 +205,19 @@ public struct SquareCameraView: View {
     @ViewBuilder
     private func reviewScreen(data: Data, width: Int, height: Int) -> some View {
         GeometryReader { geo in
-            let side = min(geo.size.width, geo.size.height)
+            let previewSize = reviewSize(width: width, height: height, fitting: geo.size)
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
                 if let uiImage = UIImage(data: data) {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFill()
-                        .frame(width: side, height: side)
+                        .frame(width: previewSize.width, height: previewSize.height)
                         .clipped()
                 } else {
                     Rectangle()
                         .fill(.gray)
-                        .frame(width: side, height: side)
+                        .frame(width: previewSize.width, height: previewSize.height)
                 }
                 Spacer(minLength: 0)
             }
@@ -172,6 +237,24 @@ public struct SquareCameraView: View {
             }
             .overlay(alignment: .top) { cancelBar }
         }
+    }
+
+    private var ratioBinding: Binding<CameraCaptureRatio> {
+        Binding {
+            session.configuration.ratio
+        } set: { ratio in
+            session.selectCaptureRatio(ratio)
+        }
+    }
+
+    private func reviewSize(width: Int, height: Int, fitting bounds: CGSize) -> CGSize {
+        let aspect = CameraAspectRatio(width: width, height: height).value
+        let widthBoundedHeight = bounds.width / aspect
+        if widthBoundedHeight <= bounds.height {
+            return CGSize(width: bounds.width, height: widthBoundedHeight)
+        }
+
+        return CGSize(width: bounds.height * aspect, height: bounds.height)
     }
 
     // MARK: - Cards
@@ -243,7 +326,7 @@ public struct SquareCameraView: View {
 // MARK: - Preview
 
 #Preview("Camera — denied state") {
-    SquareCameraView { _, _, _ in }
+    CameraCaptureView { _, _, _ in }
 }
 
 #endif

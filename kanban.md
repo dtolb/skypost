@@ -269,6 +269,27 @@ Live 1:1 viewfinder in Compose with Use/Retake review, RotationCoordinator-drive
 - ✅ **J1.G** — Wire trailing camera button + `.sheet { SquareCameraView }` + `ingestCameraCapture` into ComposeView's Images section
 - ✅ **J1.H** — Manual test plan (`docs/ui-test-backlog.md § Phase J1`) + this kanban entry
 
+## Phase J2 — Native camera controls 🚧
+
+**Plan:** [`docs/plans/2026-05-22-phase-j2-camera-controls.md`](docs/plans/2026-05-22-phase-j2-camera-controls.md)
+**Manual verification:** docs/ui-test-backlog.md § Phase J2
+
+Extends J1 from fixed square capture to native-style controls: virtual-camera zoom chips, Default/1:1 ratio, and portrait/landscape capture framing.
+
+### Done
+
+- ✅ **J2.A** — Pure capture configuration model + tests
+- ✅ **J2.B** — Generic `CenterAspectCrop` helper + tests; square crop delegates to it
+- ✅ **J2.C** — Zoom option model + tests for triple-camera labels/default selection
+- ✅ **J2.D** — `ImageProcessor.encodeJPEG(cgImage:)` downsample fallback for native/default photos
+- ✅ **J2.E** — `CameraSession` prefers virtual back camera, applies dynamic aspect ratio, ramps zoom, and crops to selected framing
+- ✅ **J2.F** — `CameraCaptureView` ratio/orientation/zoom controls + review flow
+- ✅ **J2.G** — Compose presents `CameraCaptureView`; attachment ingestion remains unchanged
+
+### Remaining
+
+- ⏳ **J2.H** — Full local verification, fresh-context subagent review, MR, pipeline, merge, local main validation
+
 ## Phase G — sketch (post-Phase-F)
 
 - **OAuth migration** (deferred until architecture §7.3 trigger fires).

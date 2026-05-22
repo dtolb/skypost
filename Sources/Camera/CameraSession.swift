@@ -3,8 +3,8 @@
 // All configuration and start/stop hops to a private serial sessionQueue
 // per axiom-media (startRunning blocks for seconds — never on main).
 // AVCapturePhotoCaptureDelegate methods are nonisolated; they finish the
-// pipeline on the session queue (crop + JPEG encode are CPU-bound, not
-// MainActor-relevant) then publish the result back to MainActor.
+// pipeline off-main (crop + JPEG encode are CPU-bound, not MainActor-relevant)
+// then publish the result back to MainActor.
 //
 // iOS-only: the entire type is gated by `#if os(iOS)` so macOS swift test
 // runs of CameraTests don't try to import AVFoundation surfaces that
@@ -37,6 +37,9 @@ public final class CameraSession: NSObject {
     }
 
     public private(set) var state: State = .idle
+    public private(set) var configuration = CameraCaptureConfiguration()
+    public private(set) var zoomOptions: [CameraZoomOption] = []
+    public private(set) var selectedZoomOption: CameraZoomOption?
 
     // Immutable AVFoundation refs are nonisolated so background-queue closures
     // can touch them without crossing actor boundaries. They're never reassigned,
@@ -50,6 +53,7 @@ public final class CameraSession: NSObject {
     )
     private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
     private var interruptionObservers: [NSObjectProtocol] = []
+    private var inFlightCaptures: [Int64: CameraPhotoCaptureProcessor] = [:]
 
     private let permissionProvider: any CameraPermissionProviding
 
@@ -97,19 +101,47 @@ public final class CameraSession: NSObject {
         state = .live
     }
 
+    public func selectCaptureRatio(_ ratio: CameraCaptureRatio) {
+        guard configuration.ratio != ratio else { return }
+        configuration.ratio = ratio
+        applyDynamicAspectRatio(configuration)
+    }
+
+    public func selectCaptureOrientation(_ orientation: CameraCaptureOrientation) {
+        guard configuration.orientation != orientation else { return }
+        configuration.orientation = orientation
+        applyDynamicAspectRatio(configuration)
+    }
+
+    public func selectZoomOption(_ option: CameraZoomOption) {
+        guard selectedZoomOption != option else { return }
+        selectedZoomOption = option
+        applyZoomFactor(option.zoomFactor)
+    }
+
     // MARK: - Capture
 
     public func capture() {
         guard case .live = state else { return }
         state = .capturing
+        let captureConfiguration = configuration
         let rotationAngle = rotationCoordinator?.videoRotationAngleForHorizonLevelCapture ?? 0
+
+        let settings = AVCapturePhotoSettings()
+        settings.photoQualityPrioritization = .balanced
+        let captureID = settings.uniqueID
+        let processor = CameraPhotoCaptureProcessor(configuration: captureConfiguration) { [weak self] result in
+            Task { @MainActor in
+                self?.finishCapture(id: captureID, result: result)
+            }
+        }
+        inFlightCaptures[captureID] = processor
+
         sessionQueue.async { [photoOutput] in
             if let connection = photoOutput.connection(with: .video) {
                 connection.videoRotationAngle = rotationAngle
             }
-            let settings = AVCapturePhotoSettings()
-            settings.photoQualityPrioritization = .balanced
-            photoOutput.capturePhoto(with: settings, delegate: self)
+            photoOutput.capturePhoto(with: settings, delegate: processor)
         }
     }
 
@@ -118,17 +150,20 @@ public final class CameraSession: NSObject {
     private func configureAndStart() async {
         // Check device availability up-front; the iPhone 17 simulator has no
         // back wide-angle camera and would otherwise fail silently.
-        guard AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) != nil else {
+        guard Self.preferredBackCamera() != nil else {
             state = .unavailable
             return
         }
-        let configured = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+        let initialConfiguration = configuration
+        let result = await withCheckedContinuation { (continuation: CheckedContinuation<SessionConfigurationResult, Never>) in
             sessionQueue.async { [self] in
-                let ok = configureSessionSync()
-                continuation.resume(returning: ok)
+                let result = configureSessionSync(configuration: initialConfiguration)
+                continuation.resume(returning: result)
             }
         }
-        if configured {
+        if result.isConfigured {
+            zoomOptions = result.zoomOptions
+            selectedZoomOption = result.selectedZoomOption
             // session.startRunning() is a blocking call; do it on the queue.
             sessionQueue.async { [session] in
                 if !session.isRunning { session.startRunning() }
@@ -140,31 +175,50 @@ public final class CameraSession: NSObject {
     }
 
     /// Returns true on success. Runs on sessionQueue.
-    private nonisolated func configureSessionSync() -> Bool {
+    private nonisolated func configureSessionSync(configuration: CameraCaptureConfiguration) -> SessionConfigurationResult {
         session.beginConfiguration()
         defer { session.commitConfiguration() }
 
         session.sessionPreset = .photo
 
-        guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
-              let input = try? AVCaptureDeviceInput(device: camera),
-              session.canAddInput(input) else {
-            Log.media.error("camera input add failed")
-            return false
+        let camera: AVCaptureDevice
+        if let existingInput = session.inputs.first(where: { ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.video) == true }) as? AVCaptureDeviceInput {
+            camera = existingInput.device
+        } else {
+            guard let preferredCamera = Self.preferredBackCamera(),
+                  let input = try? AVCaptureDeviceInput(device: preferredCamera),
+                  session.canAddInput(input) else {
+                Log.media.error("camera input add failed")
+                return .failed
+            }
+            session.addInput(input)
+            camera = preferredCamera
         }
-        session.addInput(input)
 
-        guard session.canAddOutput(photoOutput) else {
-            Log.media.error("camera photo output add failed")
-            return false
+        if !session.outputs.contains(where: { $0 === photoOutput }) {
+            guard session.canAddOutput(photoOutput) else {
+                Log.media.error("camera photo output add failed")
+                return .failed
+            }
+            session.addOutput(photoOutput)
         }
-        session.addOutput(photoOutput)
         photoOutput.maxPhotoQualityPrioritization = .quality
+        Self.applyDynamicAspectRatioSync(configuration, to: camera)
+
+        let zoomOptions = Self.makeZoomOptions(for: camera)
+        let selectedZoomOption = CameraZoomOption.defaultOption(in: zoomOptions)
+        if let selectedZoomOption {
+            Self.applyZoomFactorSync(selectedZoomOption.zoomFactor, to: camera, animated: false)
+        }
 
         // RotationCoordinator setup happens on main — the preview layer it
         // observes is owned by the SwiftUI representable. Done by caller via
         // attachRotationCoordinator(...) after the preview is mounted.
-        return true
+        return SessionConfigurationResult(
+            isConfigured: true,
+            zoomOptions: zoomOptions,
+            selectedZoomOption: selectedZoomOption
+        )
     }
 
     /// Wired from `CameraPreviewLayer.makeUIView` once the preview layer exists.
@@ -182,6 +236,113 @@ public final class CameraSession: NSObject {
         rotationCoordinator = coordinator
 
         previewLayer.connection?.videoRotationAngle = coordinator.videoRotationAngleForHorizonLevelPreview
+    }
+
+    private func applyDynamicAspectRatio(_ configuration: CameraCaptureConfiguration) {
+        sessionQueue.async { [session] in
+            guard let device = (session.inputs.first as? AVCaptureDeviceInput)?.device else { return }
+            Self.applyDynamicAspectRatioSync(configuration, to: device)
+        }
+    }
+
+    private func applyZoomFactor(_ zoomFactor: CGFloat) {
+        sessionQueue.async { [session] in
+            guard let device = (session.inputs.first as? AVCaptureDeviceInput)?.device else { return }
+            Self.applyZoomFactorSync(zoomFactor, to: device, animated: true)
+        }
+    }
+
+    private func finishCapture(id: Int64, result: CameraCaptureProcessingResult) {
+        inFlightCaptures[id] = nil
+        switch result {
+        case .success(let data, let width, let height):
+            state = .captured(jpegData: data, pixelWidth: width, pixelHeight: height)
+        case .failure(let message):
+            state = .failed(message: message)
+        }
+    }
+
+    private nonisolated static func preferredBackCamera() -> AVCaptureDevice? {
+        let deviceTypes: [AVCaptureDevice.DeviceType] = [
+            .builtInTripleCamera,
+            .builtInDualWideCamera,
+            .builtInDualCamera,
+            .builtInWideAngleCamera,
+        ]
+
+        for deviceType in deviceTypes {
+            if let device = AVCaptureDevice.default(deviceType, for: .video, position: .back) {
+                return device
+            }
+        }
+
+        return nil
+    }
+
+    private nonisolated static func makeZoomOptions(for device: AVCaptureDevice) -> [CameraZoomOption] {
+        let switchOvers = device.virtualDeviceSwitchOverVideoZoomFactors.map { CGFloat(truncating: $0) }
+        let options = CameraZoomOption.options(
+            minZoomFactor: device.minAvailableVideoZoomFactor,
+            maxZoomFactor: device.maxAvailableVideoZoomFactor,
+            switchOverZoomFactors: switchOvers,
+            displayMultiplier: device.displayVideoZoomFactorMultiplier
+        )
+
+        if options.isEmpty {
+            return [
+                CameraZoomOption(
+                    zoomFactor: device.videoZoomFactor,
+                    displayZoomFactor: device.videoZoomFactor * device.displayVideoZoomFactorMultiplier,
+                    label: "1x"
+                ),
+            ]
+        }
+
+        return options
+    }
+
+    private nonisolated static func applyZoomFactorSync(
+        _ zoomFactor: CGFloat,
+        to device: AVCaptureDevice,
+        animated: Bool
+    ) {
+        do {
+            try device.lockForConfiguration()
+            defer { device.unlockForConfiguration() }
+
+            let clampedZoom = min(
+                max(zoomFactor, device.minAvailableVideoZoomFactor),
+                device.maxAvailableVideoZoomFactor
+            )
+            device.cancelVideoZoomRamp()
+            if animated {
+                device.ramp(toVideoZoomFactor: clampedZoom, withRate: 8)
+            } else {
+                device.videoZoomFactor = clampedZoom
+            }
+        } catch {
+            Log.media.error("camera zoom configuration failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private nonisolated static func applyDynamicAspectRatioSync(
+        _ configuration: CameraCaptureConfiguration,
+        to device: AVCaptureDevice
+    ) {
+        let aspectRatio = configuration.avCaptureAspectRatio
+        guard device.activeFormat.supportedDynamicAspectRatios.contains(aspectRatio) else { return }
+
+        do {
+            try device.lockForConfiguration()
+            defer { device.unlockForConfiguration() }
+            device.setDynamicAspectRatio(aspectRatio) { _, error in
+                if let error {
+                    Log.media.error("camera dynamic aspect ratio failed: \(error.localizedDescription, privacy: .public)")
+                }
+            }
+        } catch {
+            Log.media.error("camera aspect ratio configuration failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     // MARK: - Interruption handling
@@ -214,60 +375,91 @@ public final class CameraSession: NSObject {
     }
 }
 
+private struct SessionConfigurationResult: Sendable {
+    let isConfigured: Bool
+    let zoomOptions: [CameraZoomOption]
+    let selectedZoomOption: CameraZoomOption?
+
+    static let failed = SessionConfigurationResult(
+        isConfigured: false,
+        zoomOptions: [],
+        selectedZoomOption: nil
+    )
+}
+
+private enum CameraCaptureProcessingResult: Sendable {
+    case success(data: Data, pixelWidth: Int, pixelHeight: Int)
+    case failure(String)
+}
+
 // MARK: - AVCapturePhotoCaptureDelegate
 
-extension CameraSession: AVCapturePhotoCaptureDelegate {
+private final class CameraPhotoCaptureProcessor: NSObject, AVCapturePhotoCaptureDelegate, @unchecked Sendable {
+    private let configuration: CameraCaptureConfiguration
+    private let completion: @Sendable (CameraCaptureProcessingResult) -> Void
 
-    nonisolated public func photoOutput(
+    init(
+        configuration: CameraCaptureConfiguration,
+        completion: @escaping @Sendable (CameraCaptureProcessingResult) -> Void
+    ) {
+        self.configuration = configuration
+        self.completion = completion
+    }
+
+    nonisolated func photoOutput(
         _ output: AVCapturePhotoOutput,
         didFinishProcessingPhoto photo: AVCapturePhoto,
         error: Error?
     ) {
         if let error {
             Log.media.error("photo capture failed: \(error.localizedDescription, privacy: .public)")
-            Task { @MainActor [weak self] in
-                self?.state = .failed(message: "Couldn't take photo.")
-            }
+            completion(.failure("Couldn't take photo."))
             return
         }
 
         guard let jpegData = photo.fileDataRepresentation() else {
             Log.media.error("nil photo data representation")
-            Task { @MainActor [weak self] in
-                self?.state = .failed(message: "Couldn't read photo data.")
-            }
+            completion(.failure("Couldn't read photo data."))
             return
         }
 
-        guard let source = CGImageSourceCreateWithData(jpegData as CFData, nil),
-              CGImageSourceGetCount(source) > 0,
-              let fullImage = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+        guard let fullImage = OrientedCGImageDecoder.decode(jpegData) else {
             Log.media.error("photo decode failed")
-            Task { @MainActor [weak self] in
-                self?.state = .failed(message: "Couldn't decode photo.")
-            }
+            completion(.failure("Couldn't decode photo."))
             return
         }
 
-        let squareImage = CenterSquareCrop.crop(fullImage)
+        let framedImage = CenterAspectCrop.crop(fullImage, aspectRatio: configuration.targetAspectRatio)
 
         let encoded: (data: Data, pixelWidth: Int, pixelHeight: Int)
         do {
-            encoded = try ImageProcessor.encodeJPEG(cgImage: squareImage, maxBytes: 1_000_000)
+            encoded = try ImageProcessor.encodeJPEG(cgImage: framedImage, maxBytes: 1_000_000)
         } catch {
             Log.media.error("encode failed: \(String(describing: error), privacy: .public)")
-            Task { @MainActor [weak self] in
-                self?.state = .failed(message: "Couldn't encode photo.")
-            }
+            completion(.failure("Couldn't encode photo."))
             return
         }
 
-        Task { @MainActor [weak self] in
-            self?.state = .captured(
-                jpegData: encoded.data,
-                pixelWidth: encoded.pixelWidth,
-                pixelHeight: encoded.pixelHeight
-            )
+        completion(.success(
+            data: encoded.data,
+            pixelWidth: encoded.pixelWidth,
+            pixelHeight: encoded.pixelHeight
+        ))
+    }
+}
+
+private extension CameraCaptureConfiguration {
+    var avCaptureAspectRatio: AVCaptureDevice.AspectRatio {
+        switch ratio {
+        case .square:
+            return .ratio1x1
+        case .defaultPhoto:
+            switch orientation {
+            case .portrait:
+                return .ratio3x4
+            case .landscape:
+                return .ratio4x3
+            }
         }
     }
 }

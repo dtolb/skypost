@@ -310,6 +310,16 @@ struct ImageProcessorCGImageOverloadTests {
         #expect(result.pixelWidth == 1024)
         #expect(result.pixelHeight == 1024)
     }
+
+    @Test
+    func largeCGImageDownsamplesWhenNeededToFitCap() throws {
+        let img = try makeNoisyCGImage(side: 4096)
+
+        let result = try ImageProcessor.encodeJPEG(cgImage: img, maxBytes: 1_000_000, maxLongerEdge: 2048)
+
+        #expect(result.data.count <= 1_000_000)
+        #expect(max(result.pixelWidth, result.pixelHeight) <= 2048)
+    }
 }
 
 // MARK: - Fixture helpers for ImageProcessor CGImage overload tests

@@ -55,17 +55,26 @@ public struct ImageProcessor {
         throw ImageProcessorError.cannotFit(maxBytes: maxBytes)
     }
 
-    /// Encode-to-fit for a CGImage already at its final dimensions. Used by
-    /// the Camera path which produces a cropped CGImage and doesn't need
-    /// the outer `currentMax` halving loop. If the image doesn't fit at the
-    /// lowest tried quality, throws `.cannotFit`.
+    /// Encode-to-fit for a CGImage. Used by the Camera path after framing crop.
+    /// Large native captures still get a max-longer-edge downsample pass so
+    /// detailed default-ratio photos can fit under Bluesky's 1 MB limit.
     public static func encodeJPEG(
         cgImage: CGImage,
-        maxBytes: Int = 1_000_000
+        maxBytes: Int = 1_000_000,
+        maxLongerEdge: Int = 2048
     ) throws -> (data: Data, pixelWidth: Int, pixelHeight: Int) {
-        if let fitted = try encodeFitting(cgImage: cgImage, maxBytes: maxBytes) {
-            return fitted
+        let minimumLongerEdge = 256
+        var currentMax = min(max(cgImage.width, cgImage.height), maxLongerEdge)
+
+        while currentMax >= minimumLongerEdge {
+            let rendered = try renderImage(from: cgImage, maxLongerEdge: currentMax)
+            if let fitted = try encodeFitting(cgImage: rendered, maxBytes: maxBytes) {
+                return fitted
+            }
+
+            currentMax /= 2
         }
+
         throw ImageProcessorError.cannotFit(maxBytes: maxBytes)
     }
 
@@ -119,6 +128,39 @@ public struct ImageProcessor {
             throw ImageProcessorError.cannotDecodeSource
         }
         return thumbnail
+    }
+
+    private static func renderImage(
+        from source: CGImage,
+        maxLongerEdge: Int
+    ) throws -> CGImage {
+        let longerEdge = max(source.width, source.height)
+        guard longerEdge > maxLongerEdge else { return source }
+
+        let scale = CGFloat(maxLongerEdge) / CGFloat(longerEdge)
+        let width = max(1, Int((CGFloat(source.width) * scale).rounded()))
+        let height = max(1, Int((CGFloat(source.height) * scale).rounded()))
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+
+        guard let context = CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        ) else {
+            throw ImageProcessorError.cannotEncodeJPEG
+        }
+
+        context.interpolationQuality = .high
+        context.draw(source, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        guard let image = context.makeImage() else {
+            throw ImageProcessorError.cannotEncodeJPEG
+        }
+        return image
     }
 
     private static func encode(cgImage: CGImage, quality: Double) throws -> Data {

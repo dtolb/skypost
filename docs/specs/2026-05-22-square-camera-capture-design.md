@@ -1,7 +1,7 @@
 # Square camera capture for Compose — design
 
 **Date:** 2026-05-22
-**Status:** Approved, ready for implementation plan
+**Status:** Shipped as J1; superseded for active work by [`../plans/2026-05-22-phase-j2-camera-controls.md`](../plans/2026-05-22-phase-j2-camera-controls.md)
 **Phase tag:** Phase J1 (first Phase J work item)
 **Successor of:** Phase C (Compose: images via PhotosPicker)
 
