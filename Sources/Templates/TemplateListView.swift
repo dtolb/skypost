@@ -4,9 +4,11 @@
 // TemplateStore wrapper), SwiftData for persistence, NavigationStack with
 // value-based destinations.
 
+import Foundation
 import SwiftUI
 import SwiftData
 import DesignSystem
+import UniformTypeIdentifiers
 
 public struct TemplateListView: View {
 
@@ -16,6 +18,12 @@ public struct TemplateListView: View {
 
     @State private var newSheetPresented: Bool = false
     @State private var navigationTarget: Template?
+    @State private var importPresented: Bool = false
+    @State private var exportPresented: Bool = false
+    @State private var exportDocument = TemplateExportFile(data: Data())
+    @State private var exportFilename: String = "Template.json"
+    @State private var transferErrorPresented: Bool = false
+    @State private var transferErrorMessage: String = ""
 
     public init() {}
 
@@ -60,6 +68,11 @@ public struct TemplateListView: View {
                                 } label: {
                                     Label("Edit", systemImage: "pencil")
                                 }
+                                Button {
+                                    export(template)
+                                } label: {
+                                    Label("Export JSON", systemImage: "square.and.arrow.up")
+                                }
                                 Button(role: .destructive) {
                                     delete(template)
                                 } label: {
@@ -98,9 +111,34 @@ public struct TemplateListView: View {
                         Label("New template", systemImage: "plus")
                     }
                 }
+                ToolbarItem(placement: .secondaryAction) {
+                    Button {
+                        importPresented = true
+                    } label: {
+                        Label("Import Template", systemImage: "square.and.arrow.down")
+                    }
+                }
             }
             .sheet(isPresented: $newSheetPresented) {
                 TemplateEditorView(mode: .new)
+            }
+            .fileImporter(
+                isPresented: $importPresented,
+                allowedContentTypes: [.json],
+                allowsMultipleSelection: true,
+                onCompletion: importTemplates
+            )
+            .fileExporter(
+                isPresented: $exportPresented,
+                document: exportDocument,
+                contentType: .json,
+                defaultFilename: exportFilename,
+                onCompletion: handleExportCompletion
+            )
+            .alert("Template transfer failed", isPresented: $transferErrorPresented) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(transferErrorMessage)
             }
         }
     }
@@ -113,6 +151,87 @@ public struct TemplateListView: View {
         }
         modelContext.delete(template)
         try? modelContext.save()
+    }
+
+    private func export(_ template: Template) {
+        do {
+            let data = try TemplateExchange.encode(template: template)
+            exportDocument = TemplateExportFile(data: data)
+            exportFilename = exportFilename(for: template)
+            exportPresented = true
+        } catch {
+            presentTransferError(error)
+        }
+    }
+
+    private func importTemplates(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            do {
+                for url in urls {
+                    let data = try readSecurityScopedData(from: url)
+                    try TemplateExchange.upsert(from: data, into: modelContext)
+                }
+            } catch {
+                presentTransferError(error)
+            }
+        case .failure(let error):
+            presentTransferError(error)
+        }
+    }
+
+    private func handleExportCompletion(_ result: Result<URL, Error>) {
+        if case .failure(let error) = result {
+            presentTransferError(error)
+        }
+    }
+
+    private func readSecurityScopedData(from url: URL) throws -> Data {
+        let isSecurityScoped = url.startAccessingSecurityScopedResource()
+        defer {
+            if isSecurityScoped {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+        return try Data(contentsOf: url)
+    }
+
+    private func presentTransferError(_ error: Error) {
+        let nsError = error as NSError
+        if nsError.domain == NSCocoaErrorDomain && nsError.code == NSUserCancelledError {
+            return
+        }
+        transferErrorMessage = error.localizedDescription
+        transferErrorPresented = true
+    }
+
+    private func exportFilename(for template: Template) -> String {
+        let invalidCharacters = CharacterSet(charactersIn: "/\\?%*|\"<>:")
+            .union(.newlines)
+        let base = template.title
+            .components(separatedBy: invalidCharacters)
+            .joined(separator: "-")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return "\(base.isEmpty ? "Template" : base).json"
+    }
+}
+
+private struct TemplateExportFile: FileDocument {
+    static let readableContentTypes: [UTType] = [.json]
+
+    var data: Data
+
+    init(data: Data) {
+        self.data = data
+    }
+
+    init(configuration: ReadConfiguration) throws {
+        self.data = configuration.file.regularFileContents ?? Data()
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
     }
 }
 
@@ -160,8 +279,7 @@ private struct TemplateRow: View {
 
 @MainActor
 private func makePreviewContainer(populated: Bool) -> ModelContainer {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: Template.self, configurations: config)
+    let container = try! TemplateStorage.makeInMemoryContainer()
     if populated {
         let context = ModelContext(container)
         context.insert(Template(title: "Daily standup", body: "What did you ship? What's blocked?", hashtags: ["work"]))

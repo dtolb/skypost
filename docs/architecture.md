@@ -120,7 +120,7 @@ Throw away everything else.
 | Language | **Swift 6.2**, Approachable Concurrency | `SWIFT_VERSION = 6` + `DefaultIsolation = MainActor` + `NonisolatedNonsendingByDefault`. Main-by-default kills v1's `MainActor.run` sprinkles. |
 | Observation | **`@Observable` macro** everywhere | Per-property tracking. `ObservableObject`/`@Published`/`@StateObject`/`@ObservedObject`/`@EnvironmentObject` banned in v2. |
 | View architecture | **No ViewModels.** `@Environment` for services, `@State` (often an enum) for UI state, `.task` for async. IcySky's pattern, confirmed by the modern-patterns research. |
-| Persistence (user content) | **SwiftData** | `@Query` integrates natively. No manual save() needed. Ship local-only; defer CloudKit sync until multi-device is a real ask. |
+| Persistence (user content) | **SwiftData + private CloudKit** | `@Query` integrates natively. `TemplateStorage` owns the schema/config and uses `iCloud.com.dtolb.BlueSkyTemplates` for synced templates with a local fallback. |
 | Persistence (settings) | UserDefaults | Theme, last-selected feed, "v2_migration_done" flag. Never user content. |
 | Navigation | `NavigationStack(path:)` + `.navigationDestination(for:)` + one `@Observable Router` per tab. `.sheet` for in-flow modals; `.fullScreenCover` for task takeovers. |
 | Async work | `.task` / `.task(id:)` for view-scoped, `async let` for parallel. Never `.onAppear { Task { } }`. Never `MainActor.run`. |
@@ -130,6 +130,7 @@ Throw away everything else.
 | Keychain | **Native `SecItem` wrapper** (~80 lines), `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`. Configure access-group entitlement up front. |
 | Logging | `os.Logger` per subsystem+category, privacy specifiers (`.public` / `.private` / `.private(mask: .hash)`). `print()` banned. |
 | Liquid Glass | System controls get it free. `.buttonStyle(.glass)` by default. `.glassEffect` / `GlassEffectContainer` for custom overlays only. |
+| Color surfaces | `BrandColor.pageBackground` for screen backgrounds; `BrandColor.cardBackground` for cards/lists. `LeadIcon` adapts its fill/glyph by color scheme. Avoid hard-coded `Color.white`/`Color.black` UI surfaces outside brand-filled contexts. |
 | Testing | **Swift Testing** (`@Test` / `#expect`). Test `@Observable` state transitions, not view bodies. XCTest only for `XCUIApplication`. Skip ViewInspector. |
 | Dependencies | ATProtoKit, Nuke + NukeUI, Pow, MarkdownUI. **Nothing else.** Apple-native first. |
 | Tooling | SwiftPM-driven project, SwiftLint with a `no_print` rule, swift-format. |
@@ -150,7 +151,7 @@ BlueSkyTemplatesV2/
 │   ├── Auth/                      # AuthProvider protocol + AppPasswordAuth impl
 │   ├── Bluesky/                   # BSkyClient wrapping ATProtoKit + ATProtoBluesky
 │   ├── Models/                    # Sendable DTOs (SessionInfo, Facet, etc.)
-│   ├── Templates/                 # @Model Template + SwiftData queries
+│   ├── Templates/                 # @Model Template + SwiftData queries + JSON exchange
 │   ├── Compose/                   # Composer screen + facet parsing helper
 │   └── Logging/                   # os.Logger setup, privacy helpers
 ├── Tests/
@@ -189,6 +190,7 @@ Module ownership rules from IcySky's good ideas, minus its anti-patterns:
 struct BlueSkyTemplatesApp: App {
     @State private var auth = AuthService()
     @State private var router = AppRouter()
+    @State private var templateModelContainer = try! TemplateStorage.makeCloudContainer()
 
     var body: some Scene {
         WindowGroup {
@@ -196,7 +198,7 @@ struct BlueSkyTemplatesApp: App {
                 .environment(auth)
                 .environment(router)
         }
-        .modelContainer(for: Template.self)
+        .modelContainer(templateModelContainer)
     }
 }
 
@@ -401,31 +403,38 @@ Hard rules:
 ```swift
 @Model
 final class Template {
-    @Attribute(.unique) var id: UUID
-    var title: String
-    var body: String
-    var hashtags: [String]
-    var updatedAt: Date
+    var id: UUID = UUID()
+    var title: String = ""
+    var body: String = ""
+    var hashtags: [String] = []
+    var updatedAt: Date = .now
 
-    init(title: String, body: String, hashtags: [String] = []) {
-        self.id = UUID()
+    init(
+        id: UUID = UUID(),
+        title: String,
+        body: String,
+        hashtags: [String] = [],
+        updatedAt: Date = .now
+    ) {
+        self.id = id
         self.title = title
         self.body = body
         self.hashtags = hashtags
-        self.updatedAt = .now
+        self.updatedAt = updatedAt
     }
 }
 ```
 
 ```swift
 // App level
-.modelContainer(for: Template.self)
+.modelContainer(templateModelContainer)
 
 // View level
 @Query(sort: \Template.updatedAt, order: .reverse) private var templates: [Template]
 @Environment(\.modelContext) private var modelContext
 
-// Don't write save() — SwiftData saves automatically.
+// Save explicitly after user-initiated creates, edits, deletes, and JSON imports
+// so UI flows and tests have deterministic persistence boundaries.
 // One-time migration on first launch:
 if !UserDefaults.standard.bool(forKey: "v2_migration_done") {
     if let old = UserDefaults.standard.data(forKey: "saved_templates"),
@@ -438,6 +447,23 @@ if !UserDefaults.standard.bool(forKey: "v2_migration_done") {
     }
 }
 ```
+
+CloudKit-backed SwiftData cannot enforce `@Attribute(.unique)` for the
+template UUID. Imports therefore upsert manually by `Template.id` through
+`TemplateExchange.upsert(_:into:)`, deleting duplicate rows if a local
+store ever contains more than one row for the same UUID.
+
+`TemplateStorage` is the single place that creates the template schema
+and model containers:
+
+- `TemplateStorage.makeCloudContainer()` uses private CloudKit container
+  `iCloud.com.dtolb.BlueSkyTemplates`.
+- `TemplateStorage.makeInMemoryContainer()` disables CloudKit for tests
+  and previews.
+
+`TemplateExchange` owns versioned JSON import/export for user-visible
+template sharing. Single-template JSON and archives both decode into
+stable template documents.
 
 ---
 
@@ -992,8 +1018,9 @@ or a Share Extension.
 3. ✅ **Auth** — done. `AuthProvider` protocol + `AppPasswordAuth`, ATProtoKit `AppleSecureKeychain`, login screen with closed `AuthFailureReason` mapping, `defer` + explicit `catch is CancellationError` in `restore()` (Phase D1).
 4. ✅ **Compose** — done. Text-only composer (Phase B, MR !2) with 300-grapheme counter and four-state SendState machine; image attachments (Phase C, MR !3) via PhotosPicker + ImageProcessor (ImageIO-based, ≤1 MB JPEG) + per-image required alt text + aspect-ratio embed. Auto-facets via ATProtoKit per §8.3.
 5. ✅ **Polish** — done (Phase D, MR !4). Pow send-spray + error-shake with `accessibilityReduceMotion` gates + paired haptics. `Nuke` LazyImage **deferred** until a CDN-URL surface (e.g. feed) arrives.
-6. ✅ **Tests + CI** — Swift Testing throughout (53 cases across 10 suites as of Phase D). CI already converted to `xcodebuild test` via `swift test --xunit-output` on pipeline #143.
-7. ⏸ **OAuth migration** — deferred until §7.3 trigger fires.
+6. ✅ **Tests + CI** — Swift Testing throughout (111 cases across 25 suites as of Phase J). CI uses `swift test --xunit-output` for GitLab JUnit reports plus an XcodeGen simulator build.
+7. ✅ **iCloud template storage + sharing** — done (Phase J). Private CloudKit-backed SwiftData for templates, JSON import/export, UUID upsert, CloudKit entitlements, `remote-notification` background mode, and a Create Template App Intent.
+8. ⏸ **OAuth migration** — deferred until §7.3 trigger fires.
 
 ---
 
@@ -1011,10 +1038,14 @@ gracefully. Confidential clients get 180 days — that'd require a
 server, which we don't have. Re-evaluate if/when Bluesky offers a
 different model for personal apps.
 
-### CloudKit sync for templates
-SwiftData + CloudKit had documented regressions on early iOS 26 builds.
-Ship v2 with local-only SwiftData; revisit CloudKit before adding
-multi-device sync.
+### CloudKit production setup for templates
+The code path now uses private CloudKit-backed SwiftData for templates:
+`TemplateStorage.makeCloudContainer()` targets
+`iCloud.com.dtolb.BlueSkyTemplates`, and the app entitlement declares the
+same container. Simulator builds work with ad-hoc signing, but real
+device/TestFlight/App Store sync still requires the Apple Developer
+CloudKit container, provisioning profile, and schema deployment to be
+configured for the bundle ID.
 
 ### iOS minimum at later revisits
 Rule: target current major minus zero for a personal app. Re-evaluate
@@ -1034,7 +1065,10 @@ BlueSkyTemplates v2 — Apple-native conventions (May 2026)
 
 Minimum target ............ iOS 26
 Swift language version .... 6.2 (Approachable Concurrency, default isolation = MainActor)
-Persistence ............... SwiftData (local only at launch; CloudKit later)
+Persistence ............... SwiftData + private CloudKit for templates
+                            TemplateStorage owns CloudKit/local containers
+Template exchange ......... Versioned JSON via TemplateExchange; upsert by UUID
+App Intents ............... Narrow CreateTemplateIntent + AppShortcutsProvider
 Observation ............... @Observable everywhere (no ObservableObject)
 View architecture ......... No ViewModels. @Environment for services, @State for UI state.
                             Enum-typed LoadState for loading/error/loaded.
@@ -1065,6 +1099,11 @@ Logging ................... os.Logger with subsystem+category per module
                             OSSignposter for perf traces
 Liquid Glass .............. System controls get it free. .buttonStyle(.glass) by default.
                             .glassEffect / GlassEffectContainer for custom overlays only.
+Color surfaces ............ BrandColor.pageBackground for screens;
+                            BrandColor.cardBackground for cards/lists.
+                            LeadIcon adapts fill/glyph by color scheme.
+                            No hard-coded Color.white/black UI surfaces
+                            outside brand-filled contexts.
 Image loading ............. Nuke 13.0.6 — LazyImage + .processors([.resize(...)])
                             Configure ImagePipeline.shared once in App.init()
                             Bluesky CDN: use thumbnailImageURL for lists

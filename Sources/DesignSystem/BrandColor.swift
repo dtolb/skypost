@@ -10,6 +10,10 @@ import SwiftUI
 import UIKit
 #endif
 
+#if canImport(AppKit)
+import AppKit
+#endif
+
 public enum BrandColor {
 
     /// Mantis primary tint — Ant Design `blue-6` = `#1677ff`.
@@ -51,17 +55,30 @@ public enum BrandColor {
         blue: _errorRGB.blue
     )
 
-    /// Grouped-form-style page background. On iOS this is the dynamic
-    /// `systemGroupedBackground`; on macOS we approximate with a light
-    /// gray that contrasts with `Color.white` card surfaces.
+    /// Grouped-form-style page background. On iOS/macOS this resolves to a
+    /// dynamic system color so light and dark appearances stay legible.
     ///
-    /// `var` rather than `let` because `Color(uiColor:)` is not a
-    /// compile-time constant — it must be evaluated at access time.
+    /// `var` rather than `let` because platform color bridges are not
+    /// compile-time constants — they must be evaluated at access time.
     public static var pageBackground: Color {
         #if canImport(UIKit)
         Color(uiColor: .systemGroupedBackground)
+        #elseif canImport(AppKit)
+        Color(nsColor: .windowBackgroundColor)
         #else
         Color(white: 0.95)
+        #endif
+    }
+
+    /// Card/list-row surface that contrasts with `pageBackground` in both
+    /// light and dark appearances.
+    public static var cardBackground: Color {
+        #if canImport(UIKit)
+        Color(uiColor: .secondarySystemGroupedBackground)
+        #elseif canImport(AppKit)
+        Color(nsColor: .controlBackgroundColor)
+        #else
+        Color(white: 1.0)
         #endif
     }
 

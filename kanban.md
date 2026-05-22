@@ -1,14 +1,10 @@
 # Kanban — BlueSkyTemplates v2 implementation
 
-> **Handoff state — 2026-05-21:** Phases A → I shipped end-to-end. Phase I is the cleanup sprint — knocked down 4 plan-numbered review items (#8 struct rename → `AppRoot`, #10 `@MainActor` justification comments, #13 real AppIcon shipped from user-supplied `bluesky-icon.png`, #15 semantic-color migration with new `BrandColor.destructive`/`.error`), 4 cross-cutting DS/UX nits (LeadIcon a11y redundancy, `BrandColor.pageBackground` promotion, delete-while-edited guard, Home "New template" a11y label), and 5 per-phase carry-forward batches (Phase B/D ComposeView consolidation, Phase C ImageProcessor dict-key alignment, Phase E/F test polish, Phase F link-state readability, Phase G1 preview/type polish). 98/98 Swift Testing cases on Phase I tip (+3 from baseline: 2 BrandColor role-color tests + 1 pageBackground smoke). No user-visible behavior change except the new app icon. Sim verification deferred per the Phase F headless-Simulator gap.
+> **Handoff state — 2026-05-22:** `main` and `origin/main` both point at `0d56a34` before the current working-tree changes. Phase J is implemented locally: private CloudKit-backed SwiftData for templates, versioned JSON import/export with UUID upsert, CloudKit entitlements, `remote-notification` background mode, a narrow Create Template App Intent, and dark-mode card/icon surface fixes. Verification passed with 111/111 Swift Testing cases, GitLab-style xUnit output, XcodeGen regeneration, CI-style iPhone 17 simulator build, and XcodeBuildMCP build/run launch plus dark-mode smoke capture.
 
-**Current branch:** `feature/phase-i-cleanup` (tip `b55aa2f`)
-**Open MRs:**
-- A+B: <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/2>
-- C (stacked on A+B): <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/3>
-- D (stacked on C): <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/4>
-- E (stacked on D): <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/5>
-- F (stacked on E): <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/merge_requests/6>
+**Current branch:** `main` (local HEAD == `origin/main` at `0d56a34`; Phase J is currently uncommitted working-tree work)
+**Remote status:** `origin/main` is current with local `main`; secondary `github/main` is behind and not the CI source of truth.
+**Open MRs:** none tracked here after the Phase I merge to `main`.
 
 **Per-phase plans:**
 - [Phase A — Templates CRUD](docs/plans/2026-05-21-phase-a-templates-crud.md)
@@ -17,10 +13,34 @@
 - [Phase D — Polish + Pow](docs/plans/2026-05-21-phase-d-polish.md)
 - [Phase E — Templates → Composer hand-off](docs/plans/2026-05-21-phase-e-templates-to-compose.md) (READY TO MERGE per final review)
 - [Phase F — External link card embed](docs/plans/2026-05-21-phase-f-external-link-card.md) (in flight)
+- [Phase J — iCloud template storage, exchange, and App Intents](docs/plans/2026-05-22-icloud-template-storage.md)
 
 Orchestrator is the main session; implementers are fresh `swift-coder`
 (Opus 4.7) subagents per task. Each task gets: implementer → spec-compliance
 reviewer → code-quality reviewer → mark done.
+
+## Phase J — iCloud template storage, exchange, and App Intents ✅
+
+**Plan:** [`docs/plans/2026-05-22-icloud-template-storage.md`](docs/plans/2026-05-22-icloud-template-storage.md)
+**Branch:** `main` working tree
+
+### Done
+
+- ✅ **J1** — `Template` schema made CloudKit-compatible: no unique constraint, default values, stable import `id`/`updatedAt`.
+- ✅ **J2** — `TemplateStorage` centralizes CloudKit and in-memory SwiftData containers. CloudKit container: `iCloud.com.dtolb.BlueSkyTemplates`.
+- ✅ **J3** — `TemplateExchange` versioned JSON encode/decode/archive decode and UUID upsert with duplicate cleanup.
+- ✅ **J4** — Templates UI import/export through native SwiftUI file importer/exporter.
+- ✅ **J5** — `AppRoot` uses the CloudKit-backed container with logged local fallback.
+- ✅ **J6** — App entitlements and XcodeGen config include CloudKit iCloud services and `remote-notification` background mode.
+- ✅ **J7** — Minimal `CreateTemplateIntent` plus app-target `AppShortcutsProvider`.
+- ✅ **J8** — Dynamic dark-mode card/list surfaces through `BrandColor.cardBackground`; removed hard-coded white fills from the active app UI.
+- ✅ **J9** — Adaptive `LeadIcon` styling: light mode keeps solid tint + white glyphs; dark mode uses a softer tinted surface + tint glyphs.
+- ✅ **J10** — Verification: `swift test` 111/111, `swift test --xunit-output`, `xcodegen generate`, CI-style `xcodebuild build`, and XcodeBuildMCP `build_run_sim` plus dark-mode smoke capture.
+
+### Caveats
+
+- Production/device sync still needs Apple Developer provisioning and CloudKit container/schema setup for `iCloud.com.dtolb.BlueSkyTemplates`.
+- The simulator build emits existing `LiveExternalLinkResolver` Sendable warnings unrelated to Phase J.
 
 ## Phase A — Templates CRUD UI ✅ (READY TO MERGE per final review)
 
@@ -212,7 +232,6 @@ reviewer → code-quality reviewer → mark done.
 - H1 nit — `WelcomeHero.composeAccessibilityLabel("Title!", subtitle: "…")` yields `"Title!. …"` (double-period). ComposeView's `.sent` overrides with a custom label so no VoiceOver weirdness ships; primitive nit only. `WelcomeHero.swift:59`.
 
 *From code-quality review:*
-- H7 / H6 nit — `LeadIcon(...).accessibilityHidden(true)` redundancy at the call site; `LeadIcon` already calls `.accessibilityHidden(true)` internally (`LeadIcon.swift:28`). 3 occurrences in `SettingsTabView.swift:31,39,61` and 1 in `ComposeView.swift:745`. Pick one direction across the codebase: keep internal (drop call-sites) or keep call-sites (drop internal).
 - H3 / H4 nit — `Color(white: 0.95)` macOS-fallback `pageBackground` duplicated in `HomeView.swift:217-223` (static var) and `TemplateListView.swift:116-122` (instance var). Also stylistically inconsistent (static vs instance). If a third site lands, promote to a `BrandColor.pageBackground` (or `BrandColor.groupedBackground`) primitive.
 - H3 nit — quick-action `.accessibilityLabel(title)` reads "New" / "Compose" / "Templates" / "Settings" verbatim; "New" specifically loses context. Adding " template" suffix or a more verbose a11y label (e.g. "New template") would clarify. `HomeView.swift:140`.
 - H1 nit — `BrandSectionHeader` applies `.textCase(.uppercase)` AND `.kerning(1.0)` manually, but SwiftUI's Form layer re-applies `.textCase(.uppercase)` to Section headers by default. Harmless double-uppercase on letters; the manual kerning may be re-laid out by the OS pass. Verify visually; consider `.textCase(nil)` on parent Sections (per the primitive's own docstring guidance) if kerning looks off.
@@ -224,6 +243,7 @@ reviewer → code-quality reviewer → mark done.
 - `selectedTab` default stays `.compose` — Phase G1 cold-launch guarantee preserved.
 - `TemplateApplier` hand-off still flips to `.compose` on apply (untouched in this phase).
 - `SentSessionLog` is in-memory, capped at 50, cleared on process termination. No persistence; no `signOut` reset (acceptable per spec).
+- Historical H6/H7 `LeadIcon(...).accessibilityHidden(true)` redundancy was resolved in Phase I.B1; Phase J later made `LeadIcon` dark-mode adaptive.
 - 95/95 tests passing on every commit; `xcodebuild` against iPhone 17 simulator green throughout.
 - Sim verification deferred to Dan (Simulator headless on this Mac per the F-sim memory).
 
@@ -233,4 +253,3 @@ reviewer → code-quality reviewer → mark done.
 - **Deferred-cleanup track**: plan #8 (App struct rename), plan #10 (@MainActor consistency), plan #12 (Keychain duplicate), plan #13 (app icon), plan #15 (DesignSystem semantic colors), ComposeView cosmetic nits (lines 75-76 ternary, `copy(_:)` missing `#else`), E2/E3/E4 cosmetic nits (this file's "Deferred-cosmetic nits (Phase E)"). Nuke LazyImage when a feed/CDN-URL surface arrives.
 - **Feature track candidates**: reply / quote support, external link card embed, Save draft as template (round-trip of Phase E).
 - **UI test harness**: backlog at [`docs/ui-test-backlog.md`](docs/ui-test-backlog.md); plan at [`docs/plans/2026-05-21-ui-test-harness.md`](docs/plans/2026-05-21-ui-test-harness.md). Deferred per Dan's "features for a while" directive; pick up when backlog crosses ~10 P0/P1 items or after 2-3 more feature phases. **Pre-pickup task:** refresh the harness plan for the post-G1 gesture surface — drop `tapUseFromContextMenu`, the "Use" swipe-button accessibilityIdentifier sweep, and the Use-Template toolbar references (plan §lines 115/119/170); add picker-Menu page-object helpers + Compose-default-tab fixture.
-

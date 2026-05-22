@@ -13,14 +13,66 @@ struct TemplateModelTests {
         #expect(t.hashtags == ["bsky"])
         #expect(t.updatedAt.timeIntervalSinceNow < 1)
     }
+
+    @Test
+    func initAcceptsStableImportIdentityAndTimestamp() throws {
+        let id = try #require(UUID(uuidString: "5C2CB74F-A9D7-4FA5-A4E0-EC43582233F4"))
+        let updatedAt = Date(timeIntervalSince1970: 1_777_777_777)
+
+        let t = Template(
+            id: id,
+            title: "Imported",
+            body: "Preserve this",
+            hashtags: ["imported"],
+            updatedAt: updatedAt
+        )
+
+        #expect(t.id == id)
+        #expect(t.title == "Imported")
+        #expect(t.body == "Preserve this")
+        #expect(t.hashtags == ["imported"])
+        #expect(t.updatedAt == updatedAt)
+    }
 }
 
 // MARK: - In-memory container helper
 
 @MainActor
 private func inMemoryContainer() throws -> ModelContainer {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    return try ModelContainer(for: Template.self, configurations: config)
+    try TemplateStorage.makeInMemoryContainer()
+}
+
+// MARK: - Storage configuration
+
+@Suite("TemplateStorage")
+struct TemplateStorageTests {
+
+    @Test
+    func cloudConfigurationUsesExpectedContainerIdentifier() {
+        let configuration = TemplateStorage.cloudConfiguration
+
+        #expect(TemplateStorage.cloudKitContainerIdentifier == "iCloud.com.dtolb.BlueSkyTemplates")
+        #expect(configuration.cloudKitContainerIdentifier == TemplateStorage.cloudKitContainerIdentifier)
+        #expect(configuration.isStoredInMemoryOnly == false)
+    }
+
+    @Test
+    func inMemoryConfigurationDisablesCloudKit() {
+        let configuration = TemplateStorage.inMemoryConfiguration
+
+        #expect(configuration.isStoredInMemoryOnly)
+        #expect(configuration.cloudKitContainerIdentifier == nil)
+    }
+
+    @Test
+    @MainActor
+    func makeInMemoryContainerCreatesEmptyUsableStore() throws {
+        let container = try TemplateStorage.makeInMemoryContainer()
+        let context = ModelContext(container)
+
+        let results = try context.fetch(FetchDescriptor<Template>())
+        #expect(results.isEmpty)
+    }
 }
 
 // MARK: - SwiftData CRUD
@@ -183,4 +235,3 @@ struct HashtagParserTests {
         #expect(results.first?.hashtags == ["a", "b"])
     }
 }
-

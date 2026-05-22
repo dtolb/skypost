@@ -139,7 +139,7 @@ public struct HomeView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(Color.white, in: .rect(cornerRadius: 14, style: .continuous))
+            .background(BrandColor.cardBackground, in: .rect(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel ?? title)
@@ -161,7 +161,7 @@ public struct HomeView: View {
                         }
                     }
                 }
-                .background(Color.white, in: .rect(cornerRadius: 10, style: .continuous))
+                .background(BrandColor.cardBackground, in: .rect(cornerRadius: 10, style: .continuous))
                 .padding(.horizontal, 16)
             } else {
                 Text("Nothing sent yet — go post something.")

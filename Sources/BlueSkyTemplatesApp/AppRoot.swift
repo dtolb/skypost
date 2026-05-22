@@ -14,6 +14,7 @@ import Auth
 import Bluesky
 import Compose
 import DesignSystem
+import AppLogging
 import Templates
 
 public struct AppRoot: App {
@@ -25,6 +26,7 @@ public struct AppRoot: App {
     @State private var auth: AuthService
     @State private var router = AppRouter()
     @State private var templateApplier = TemplateApplier()
+    @State private var templateModelContainer: ModelContainer
     // In-memory log of posts sent during this process. Wiped on
     // termination by design — persisting sent posts is largely redundant
     // with the user's PDS feed. HomeView reads it via @Environment;
@@ -43,6 +45,7 @@ public struct AppRoot: App {
         let api = APIClient()
         self._api = State(initialValue: api)
         self._auth = State(initialValue: AuthService(provider: AppPasswordAuth(api: api)))
+        self._templateModelContainer = State(initialValue: Self.makeTemplateModelContainer())
     }
 
     public var body: some Scene {
@@ -58,6 +61,19 @@ public struct AppRoot: App {
                 #endif
                 .tint(BrandColor.tint)
         }
-        .modelContainer(for: Template.self)
+        .modelContainer(templateModelContainer)
+    }
+
+    private static func makeTemplateModelContainer() -> ModelContainer {
+        do {
+            return try TemplateStorage.makeCloudContainer()
+        } catch {
+            Log.storage.error("Unable to create CloudKit-backed template container: \(error.localizedDescription, privacy: .public)")
+            do {
+                return try ModelContainer(for: Template.self)
+            } catch {
+                fatalError("Unable to create fallback template container: \(error)")
+            }
+        }
     }
 }

@@ -190,8 +190,18 @@ public struct ComposeView: View {
             .navigationTitle("Compose")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            .scrollDismissesKeyboard(.interactively)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        dismissKeyboard()
+                    }
+                }
+            }
             #endif
             .onAppear { editorFocused = true }
+            .onDisappear { dismissKeyboard() }
             // Auto-clear after success: 2-second URI dwell, then reset.
             // Re-check the case before mutating so a brand-new send started
             // during the dwell window isn't clobbered back to idle.
@@ -541,7 +551,7 @@ public struct ComposeView: View {
         // exclusive-embed-slot rule (images win) and falls through to the
         // external-only path when images is empty.
         let card: ExternalLinkCard? = if case .loaded(let c) = linkState { c } else { nil }
-        editorFocused = false
+        dismissKeyboard()
         send = .sending
         Task {
             do {
@@ -611,6 +621,18 @@ public struct ComposeView: View {
         // visionOS/watchOS/etc. — no clipboard surface today. Intentional no-op;
         // revisit if a new target ships.
         _ = string
+        #endif
+    }
+
+    private func dismissKeyboard() {
+        editorFocused = false
+        #if canImport(UIKit)
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
         #endif
     }
 }

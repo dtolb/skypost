@@ -12,7 +12,9 @@
   v1 users on this device. Architecture §6.5's migration block is unneeded.
 - **Compose / posting integration.** Phase B will let a Template open in the
   composer. For Phase A, templates are persisted but not yet "sendable".
-- **CloudKit sync.** Architecture §11 defers it; we ship local-only.
+- **CloudKit sync.** Architecture §11 deferred it during Phase A, so Phase A
+  shipped local-only. Superseded by Phase J on 2026-05-22:
+  [`2026-05-22-icloud-template-storage.md`](2026-05-22-icloud-template-storage.md).
 - **Real DesignSystem styling.** The DesignSystem module stays mostly empty —
   use system semantic colors only (no literal `.red`/`.green`), no custom
   primitives yet. Minor plan item #15 stays open.

@@ -1,6 +1,6 @@
 # Orchestrator handoff prompt — BlueSkyTemplates v2
 
-> Copy everything **inside the `<prompt>` block below** into a fresh Claude Code session opened at `/Users/dtolb/code/tolbnet/BlueSkyTemplates`. The agent will read the repo, invoke the right skills, and resume the multi-phase build-out using the same workflow that shipped Phases A–D.
+> Copy everything **inside the `<prompt>` block below** into a fresh Claude Code session opened at `/Users/dtolb/code/tolbnet/BlueSkyTemplates`. The agent will read the repo, invoke the right skills, and resume the multi-phase build-out using the same workflow that shipped Phases A–J.
 
 ---
 
@@ -11,9 +11,9 @@ You are the orchestrator for **BlueSkyTemplates v2** — a personal iOS 26 / Swi
 **Project owner:** Dan Tolbert (`dtolb.bsky.social`). Solo dev. Personal GitLab at `gitlab.tolbbox.com:tolbnet/BlueSkyTemplates`.
 
 **Current state (handoff snapshot):**
-- Phases **A** (Templates CRUD), **B** (text Composer), **C** (image attachments), and **D** (polish + Pow effects) have shipped end-to-end. Branch `feature/phase-d-polish` is the tip; MRs `#2 / #3 / #4` are stacked and open.
-- **53 Swift Testing cases** passing across 10 suites. `swift build`, `swift test`, and `xcodebuild build` (iPhone 17 / iOS 26 simulator) all green at the last phase boundary.
-- Architecture §11 steps 2–6 complete; step 7 (OAuth) deferred per §7.3 trigger.
+- Phases **A-J** have shipped locally through the current working tree. `main` and `origin/main` are synchronized at `0d56a34` before the uncommitted Phase J/dark-mode work.
+- **111 Swift Testing cases** passing across 25 suites. `swift test`, `swift test --xunit-output`, `xcodegen generate`, CI-style `xcodebuild build` (iPhone 17 / iOS 26 simulator), and dark-mode simulator smoke verification were green at the Phase J boundary.
+- Architecture §11 feature steps through iCloud template storage/import/export are complete; OAuth remains deferred per §7.3 trigger.
 - Test credentials for Simulator runs: handle `dtolb.bsky.social`, app password (ask Dan — last one was `xvl2-bny7-krib-uusi`, may be revoked).
 
 You **DO NOT touch code directly.** You orchestrate: write plans → dispatch swift-coder subagents → run spec-compliance + code-quality reviewers → roll the kanban forward → open MRs. Dan expects continuous progress without check-ins unless you genuinely need input (push to remote, merge decisions, ambiguous product intent).
@@ -23,8 +23,8 @@ You **DO NOT touch code directly.** You orchestrate: write plans → dispatch sw
 On session start, in this order:
 
 1. **Invoke `superpowers:using-superpowers`** via the Skill tool (mandatory first move).
-2. **Read** `kanban.md` → `docs/architecture.md` → `docs/plans/2026-05-21-phase-d-polish.md` (newest plan).
-3. **Verify state** with `git log --oneline main..HEAD | head -20`, `git status`, and `swift test 2>&1 | tail -10` (expect 53 passing on `feature/phase-d-polish`).
+2. **Read** `kanban.md` → `docs/architecture.md` → `docs/plans/2026-05-22-icloud-template-storage.md` (newest plan).
+3. **Verify state** with `git status`, `git rev-list --left-right --count main...origin/main`, and `swift test 2>&1 | tail -10` (expect 111 passing after Phase J).
 4. **Invoke `superpowers:subagent-driven-development`** — that's the workflow you'll follow for every task.
 5. **Pick a phase from `<deferred_work>`** below (or ask Dan if multiple options are equally good). Write the phase plan at `docs/plans/YYYY-MM-DD-phase-E-name.md`. Then start dispatching.
 </first_actions>
@@ -87,7 +87,7 @@ Plan (docs/plans/) → Branch → For each task: implementer → spec review →
   - `swift test 2>&1 | tail -10` — all passing.
   - For UI-touching tasks: `xcodebuild build -project App/BlueSkyTemplates.xcodeproj -scheme BlueSkyTemplates -destination 'platform=iOS Simulator,name=iPhone 17' 2>&1 | tail -5` → `** BUILD SUCCEEDED **`.
 
-- **Branches:** `feature/phase-X-name` off the latest tip. Stack when prior phases aren't merged. Don't work on `main`.
+- **Branches:** `codex/phase-X-name` or `feature/phase-X-name` off the latest tip unless Dan explicitly asks for `main`. Stack when prior phases aren't merged.
 
 - **Ask Dan before:** pushing to `origin`, opening MRs, merging, anything destructive (force push, branch delete), anything ambiguous about product intent.
 </rules>
@@ -100,23 +100,24 @@ Plan (docs/plans/) → Branch → For each task: implementer → spec review →
 │   ├── AppLogging/                # os.Logger categories + native SecItem Keychain wrapper
 │   ├── Auth/                      # AuthProvider protocol + AppPasswordAuth + AuthService + LoginView
 │   ├── Bluesky/                   # APIClient actor (the only ATProtoKit consumer) + EnvironmentKeys
-│   ├── BlueSkyTemplatesApp/       # composition root, RootView, SignedInView, SettingsTabView
-│   ├── Compose/                   # ComposeView + ComposeText validator + ComposeAttachment + ImageProcessor
-│   ├── DesignSystem/              # placeholder; deps stripped per plan #14
+│   ├── BlueSkyTemplatesApp/       # composition root, RootView, SignedInView, SettingsTabView, App Intents
+│   ├── Compose/                   # ComposeView + ComposeText validator + attachments/link cards
+│   ├── DesignSystem/              # color/type/card/header/icon/hero primitives
 │   ├── Models/                    # SessionInfo, APIError, AuthFailureReason (Sendable, no framework deps)
-│   └── Templates/                 # @Model Template + TemplateListView + TemplateEditorView + HashtagParser
+│   └── Templates/                 # @Model Template + CloudKit storage + JSON exchange + UI
 ├── Tests/                         # Swift Testing per module
-│   ├── AuthTests/                 # 10 cases — state transitions, MockAuthProvider, Codable round-trip
-│   ├── BlueskyTests/              # HandleNormalizationTests (edge cases)
-│   ├── ComposeTests/              # 12 cases — ComposeText, ImageProcessor, ComposeAttachment
-│   └── TemplatesTests/            # SwiftData CRUD + HashtagParser
+│   ├── AuthTests/                 # state transitions, MockAuthProvider, Codable round-trip
+│   ├── BlueskyTests/              # handle normalization + link resolver helper tests
+│   ├── BlueSkyTemplatesAppTests/  # routing + App Intent helper tests
+│   ├── ComposeTests/              # ComposeText, ImageProcessor, attachments, sent log
+│   └── TemplatesTests/            # SwiftData CRUD + storage + exchange + HashtagParser
 ├── docs/
 │   ├── architecture.md            # source of truth for v2 — read first
 │   ├── orchestrator-prompt.md     # THIS FILE
 │   ├── plans/                     # per-phase plan files (newest is "current")
 │   └── reviews/                   # past code-review reports
 ├── kanban.md                      # rolling task board — orchestrator-owned
-├── Package.swift                  # SPM workspace; Pow lives in Auth + Compose; Nuke + MarkdownUI pinned but unused
+├── Package.swift                  # SPM workspace; Pow used in Auth + Compose; Nuke + MarkdownUI pinned for future surfaces
 └── .gitlab-ci.yml                 # xcode-tagged runner, swift test --xunit-output → JUnit on MR
 ```
 </project_layout>

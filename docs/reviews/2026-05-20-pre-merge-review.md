@@ -203,7 +203,9 @@ $ cd App && xcodegen generate && xcodebuild build \
   warning: Metadata extraction skipped. No AppIntents.framework dependency found.
 ** BUILD SUCCEEDED **
 ```
-The single warning is from Apple's `appintentsmetadataprocessor` tool noting that we don't ship App Intents — harmless. No Swift compiler warnings, no Sendable warnings, no concurrency warnings.
+Historical note: at this review point the app did not ship App Intents, so
+Apple's `appintentsmetadataprocessor` warning was harmless. Phase J later
+added a narrow `CreateTemplateIntent` and app shortcut metadata.
 
 ## Recommendation
 

@@ -4,11 +4,14 @@ A personal iOS app for posting templated Bluesky posts.
 
 ## Status
 
-**v2 rewrite in progress on branch `v2`** (will merge to `main` shortly).
-Shipped so far: app-password sign-in, session restore, and a hello-world
-post path. The live todo list lives in
-[`docs/plans/`](docs/plans/); the most recent is
-[`docs/plans/2026-05-20-review-fixes.md`](docs/plans/2026-05-20-review-fixes.md).
+**v2 is on `main`.** Shipped so far: app-password sign-in and restore,
+Templates CRUD, Compose with text/images/link cards, template picker and
+template apply flow, Mantis styling, iCloud-backed template storage,
+template JSON import/export, a Create Template App Intent, and dark-mode
+safe card/icon surfaces.
+
+The live task board is [`kanban.md`](kanban.md). The most recent plan is
+[`docs/plans/2026-05-22-icloud-template-storage.md`](docs/plans/2026-05-22-icloud-template-storage.md).
 
 ## Build & run
 
@@ -55,11 +58,13 @@ The `.xcodeproj` is gitignored and must be regenerated from
     behind an `actor APIClient` and a Keychain-backed session store.
   - `Models` — shared DTOs (`SessionInfo`, `APIError`) with no framework
     dependencies.
-  - `Templates` — SwiftData `@Model Template` and friends.
-  - `Compose` — post-composition feature (placeholder; full facets/images
-    path is the next dispatch).
-  - `DesignSystem` — typography / color / component primitives
-    (placeholder).
+  - `Templates` — SwiftData `@Model Template`, CloudKit storage wiring,
+    JSON template exchange, and Templates CRUD UI.
+  - `Compose` — post-composition feature with text, image attachment,
+    external link card, template picker, and send-state handling.
+  - `DesignSystem` — typography, color, gradient, card, header, icon, and
+    hero primitives, including dynamic page/card/icon surfaces for light and
+    dark appearances.
   - `AppLogging` — `os.Logger` categories and a `SecItem` Keychain
     wrapper.
 - `Tests/` — `swift test` targets paralleling the source modules
@@ -70,6 +75,12 @@ The `.xcodeproj` is gitignored and must be regenerated from
 **Module-boundary rule:** only `Bluesky` imports `ATProtoKit`. Every
 other module talks to Bluesky through `APIClient` and the types in
 `Models`.
+
+Template user content is stored through SwiftData. The app uses the
+private CloudKit container `iCloud.com.dtolb.BlueSkyTemplates` when the
+app entitlement/provisioning allows it, and falls back to a local
+SwiftData store if CloudKit initialization fails. Template import/export
+uses versioned JSON handled by the `Templates` module.
 
 ## Architecture spec
 
@@ -91,14 +102,13 @@ Pipelines: <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/pipelines>
 
 ## Dependencies
 
-Pinned in `Package.swift`. Only ATProtoKit is exercised today; the rest
-are wired through `DesignSystem` ahead of the UI dispatches.
+Pinned in `Package.swift`.
 
 | Package | Pin | Role |
 | --- | --- | --- |
 | [ATProtoKit](https://github.com/MasterJ93/ATProtoKit) | `0.32.5..<0.33.0` | Bluesky / atproto SDK. Imported only by `Bluesky`. |
-| [Nuke](https://github.com/kean/Nuke) | `13.0.6..<14.0.0` | Image loading (unused yet). |
-| [Pow](https://github.com/EmergeTools/Pow) | `from: 1.0.6` | SwiftUI transitions and delight effects (unused yet). |
+| [Nuke](https://github.com/kean/Nuke) | `13.0.6..<14.0.0` | Image loading, pinned for future feed/CDN URL surfaces. |
+| [Pow](https://github.com/EmergeTools/Pow) | `from: 1.0.6` | SwiftUI send/error effects. |
 | [swift-markdown-ui](https://github.com/gonzalezreal/swift-markdown-ui) | `2.4.1..<3.0.0` | Markdown rendering for bios and help (unused yet). |
 
 ## License

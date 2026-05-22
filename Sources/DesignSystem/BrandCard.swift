@@ -1,6 +1,6 @@
-// BrandCard — 10pt continuous-radius white surface card.
+// BrandCard — 10pt continuous-radius dynamic surface card.
 //
-// Mantis iOS card token: white background on `systemGroupedBackground`,
+// Mantis iOS card token: elevated card surface on grouped background,
 // 10pt continuous-corner radius, 16pt insets all around.
 
 import SwiftUI
@@ -19,7 +19,7 @@ public struct BrandCard<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.white)
+                    .fill(BrandColor.cardBackground)
             )
     }
 }

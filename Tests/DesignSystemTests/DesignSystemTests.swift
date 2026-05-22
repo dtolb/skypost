@@ -58,6 +58,12 @@ struct BrandColorTests {
         #expect(BrandColor.pageBackground != Color.clear)
     }
 
+    @Test func cardBackgroundIsNonClear() {
+        // Smoke: card surfaces must use a dynamic system-backed token,
+        // not a hard-coded light-only Color.white.
+        #expect(BrandColor.cardBackground != Color.clear)
+    }
+
     @Test
     func deterministicColorPaletteMembership() {
         let inputs = [
@@ -77,10 +83,31 @@ struct BrandColorTests {
     }
 }
 
+@Suite("LeadIcon adaptive style")
+struct LeadIconStyleTests {
+
+    @Test
+    func lightModeUsesSolidTintWithWhiteSymbol() {
+        let style = LeadIcon.resolvedStyle(for: .light, tint: BrandColor.tint)
+
+        #expect(style.background == BrandColor.tint)
+        #expect(style.symbol == .white)
+    }
+
+    @Test
+    func darkModeUsesTintedSurfaceWithTintSymbol() {
+        let style = LeadIcon.resolvedStyle(for: .dark, tint: BrandColor.tint)
+
+        #expect(style.background == BrandColor.tint.opacity(0.18))
+        #expect(style.symbol == BrandColor.tint)
+    }
+}
+
 @Suite("WelcomeHero accessibility")
 struct WelcomeHeroAccessibilityTests {
 
     @Test
+    @MainActor
     func welcomeHeroAccessibilityLabelComposesTitleAndSubtitle() {
         let label = WelcomeHero<EmptyView>.composeAccessibilityLabel(
             title: "Posted!",

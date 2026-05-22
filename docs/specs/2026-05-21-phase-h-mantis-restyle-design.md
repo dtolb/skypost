@@ -43,7 +43,9 @@ port — this is a Bluesky-templates app.
 - No motion-design changes — Pow effects retained as-is.
 - No dark-mode-specific token work beyond what SwiftUI already provides
   (`systemGroupedBackground`, `secondary`/`tertiary` foreground styles). Mantis
-  ships a light-mode-first identity; dark-mode brand work is a future phase.
+  ships a light-mode-first identity. Historical note: Phase J later added
+  `BrandColor.cardBackground`, adaptive `LeadIcon` dark-mode styling, and
+  removed hard-coded white card surfaces.
 - No XCUITest harness work (deferred per kanban Phase G note).
 - No icon catalog rework (existing SF Symbols stay).
 - No tab-order change beyond inserting Home in position 1.
@@ -62,7 +64,7 @@ value types or `View` structs with no external state.
 | `BrandGradient.welcome` | 5-stop diagonal `LinearGradient` (lighter→light→main→dark→darker, 250.38°) matching Mantis web `WelcomeBanner` | `WelcomeHero` |
 | `BrandCard<Content>` | 10pt continuous-radius surface, white-on-`systemGroupedBackground`, optional Mantis primaryButton shadow | Home, hero CTAs |
 | `BrandSectionHeader(_:)` | Uppercase 13pt, tracking 0.08em, secondary foreground; intended for `Section { ... } header: { BrandSectionHeader("Title") }` | All forms |
-| `LeadIcon(systemName:tint:)` | 30pt rounded-square colored glyph, SF Symbol body | Settings, picker, template rows |
+| `LeadIcon(systemName:tint:)` | 30pt adaptive rounded-square glyph, SF Symbol body | Settings, picker, template rows |
 | `WelcomeHero(title:subtitle:trailing:)` | Gradient hero card, `padding 20`, `radius 16`, `primaryButton` shadow | Login, Compose Sent, Templates empty, Home |
 | `BrandTypography.largeTitleStyle()` | 34pt / 700 / tracking -0.9 — viewmodifier; iOS large-title default is close but tracking differs | Hero subtitle, Home greeting |
 
@@ -216,7 +218,7 @@ Per architecture §6.2 — Swift Testing only, no snapshot framework.
 | `WelcomeHero` accessibility label composition | Single assertion | `DesignSystemTests` |
 | `SentSessionLog` append / cap / ordering / preview-truncation | Full TDD | `ComposeTests` (lives in Compose module) |
 | `HomeView` derived state | Action-tap intent surfacing via a closure injection (`onAction: (HomeAction) -> Void`) so the test doesn't need a SwiftUI host | New `BlueSkyTemplatesAppTests` target |
-| Existing 82 tests | Must stay green | `swift test --xunit-output` |
+| Existing 82-test Phase H baseline | Must stay green during Phase H | `swift test --xunit-output` |
 
 Pure visual changes (hero gradient stops, card radius, section-header styling) are
 **not** unit-tested. The implementer must verify visually in the iOS simulator and
