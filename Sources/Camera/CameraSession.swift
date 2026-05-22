@@ -38,12 +38,17 @@ public final class CameraSession: NSObject {
 
     public private(set) var state: State = .idle
 
-    public let session = AVCaptureSession()
-    private let photoOutput = AVCapturePhotoOutput()
-    private let sessionQueue = DispatchQueue(label: "com.dtolb.BlueSkyTemplates.camera.session",
-                                             qos: .userInitiated)
+    // Immutable AVFoundation refs are nonisolated so background-queue closures
+    // can touch them without crossing actor boundaries. They're never reassigned,
+    // and AVCaptureSession/AVCapturePhotoOutput are thread-safe for the calls we
+    // make on sessionQueue.
+    public nonisolated let session = AVCaptureSession()
+    private nonisolated let photoOutput = AVCapturePhotoOutput()
+    private nonisolated let sessionQueue = DispatchQueue(
+        label: "com.dtolb.BlueSkyTemplates.camera.session",
+        qos: .userInitiated
+    )
     private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
-    private var rotationObservation: NSKeyValueObservation?
     private var interruptionObservers: [NSObjectProtocol] = []
 
     private let permissionProvider: any CameraPermissionProviding
@@ -117,27 +122,25 @@ public final class CameraSession: NSObject {
             state = .unavailable
             return
         }
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+        let configured = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
             sessionQueue.async { [self] in
-                let configured = configureSessionSync()
-                DispatchQueue.main.async {
-                    if configured {
-                        // session.startRunning() is a blocking call; do it on the queue.
-                        self.sessionQueue.async {
-                            if !self.session.isRunning { self.session.startRunning() }
-                        }
-                        self.state = .live
-                    } else {
-                        self.state = .failed(message: "Couldn't start camera.")
-                    }
-                    continuation.resume()
-                }
+                let ok = configureSessionSync()
+                continuation.resume(returning: ok)
             }
+        }
+        if configured {
+            // session.startRunning() is a blocking call; do it on the queue.
+            sessionQueue.async { [session] in
+                if !session.isRunning { session.startRunning() }
+            }
+            state = .live
+        } else {
+            state = .failed(message: "Couldn't start camera.")
         }
     }
 
     /// Returns true on success. Runs on sessionQueue.
-    private func configureSessionSync() -> Bool {
+    private nonisolated func configureSessionSync() -> Bool {
         session.beginConfiguration()
         defer { session.commitConfiguration() }
 
@@ -165,23 +168,20 @@ public final class CameraSession: NSObject {
     }
 
     /// Wired from `CameraPreviewLayer.makeUIView` once the preview layer exists.
-    /// Sets up the iOS 17+ RotationCoordinator so preview + capture stay correctly
-    /// oriented even when the device is face-up / face-down.
+    /// Sets up the iOS 17+ RotationCoordinator for capture-time EXIF orientation.
+    ///
+    /// The app is portrait-only (UISupportedInterfaceOrientations in Info.plist),
+    /// so the preview layer's videoRotationAngle is set once here and never needs
+    /// to change — there's no KVO observation of videoRotationAngleForHorizonLevelPreview.
+    /// Capture rotation still flows through the coordinator's
+    /// videoRotationAngleForHorizonLevelCapture in `capture()`, so face-up /
+    /// face-down EXIF orientation remains correct for the saved JPEG.
     public func attachRotationCoordinator(previewLayer: AVCaptureVideoPreviewLayer) {
         guard let device = (session.inputs.first as? AVCaptureDeviceInput)?.device else { return }
         let coordinator = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: previewLayer)
         rotationCoordinator = coordinator
 
         previewLayer.connection?.videoRotationAngle = coordinator.videoRotationAngleForHorizonLevelPreview
-        rotationObservation = coordinator.observe(
-            \.videoRotationAngleForHorizonLevelPreview,
-            options: [.new]
-        ) { [weak previewLayer] coordinator, _ in
-            let angle = coordinator.videoRotationAngleForHorizonLevelPreview
-            Task { @MainActor [weak previewLayer] in
-                previewLayer?.connection?.videoRotationAngle = angle
-            }
-        }
     }
 
     // MARK: - Interruption handling
