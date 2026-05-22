@@ -23,6 +23,7 @@
 import SwiftUI
 import SwiftData
 import Bluesky
+import Camera
 import DesignSystem
 import Models
 import Templates
@@ -82,6 +83,10 @@ public struct ComposeView: View {
     @State private var attachmentError: String?
     #endif
 
+    #if os(iOS)
+    @State private var cameraPresented: Bool = false
+    #endif
+
     // Equatable so `.task(id: send)` can detect transitions, and so the
     // computed helpers below can pattern-match cleanly.
     private enum SendState: Equatable {
@@ -139,15 +144,30 @@ public struct ComposeView: View {
                     // closure doesn't capture the main-actor-isolated
                     // `attachments` array directly (Swift 6 strict).
                     let currentCount = attachments.count
-                    PhotosPicker(
-                        selection: $pickerSelection,
-                        maxSelectionCount: ComposeText.attachmentLimit - currentCount,
-                        matching: .images,
-                        photoLibrary: .shared()
-                    ) {
-                        Label("Add image (\(currentCount)/\(ComposeText.attachmentLimit))", systemImage: "photo.badge.plus")
+                    HStack {
+                        PhotosPicker(
+                            selection: $pickerSelection,
+                            maxSelectionCount: ComposeText.attachmentLimit - currentCount,
+                            matching: .images,
+                            photoLibrary: .shared()
+                        ) {
+                            Label("Add image (\(currentCount)/\(ComposeText.attachmentLimit))", systemImage: "photo.badge.plus")
+                        }
+                        .disabled(!ComposeText.canAttach(currentCount: currentCount) || isSending)
+                        #if os(iOS)
+                        Spacer()
+                        Button {
+                            cameraPresented = true
+                        } label: {
+                            Image(systemName: "camera")
+                                .font(.body.weight(.semibold))
+                                .frame(width: 36, height: 36)
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(!ComposeText.canAttach(currentCount: currentCount) || isSending)
+                        .accessibilityLabel("Take photo")
+                        #endif
                     }
-                    .disabled(!ComposeText.canAttach(currentCount: currentCount) || isSending)
                     #else
                     Text("Image attachments are iOS-only.")
                         .foregroundStyle(.secondary)
@@ -296,6 +316,13 @@ public struct ComposeView: View {
                 Task {
                     await ingest(items: newItems)
                     pickerSelection.removeAll()
+                }
+            }
+            #endif
+            #if os(iOS)
+            .sheet(isPresented: $cameraPresented) {
+                SquareCameraView { data, width, height in
+                    ingestCameraCapture(data: data, pixelWidth: width, pixelHeight: height)
                 }
             }
             #endif
@@ -604,6 +631,19 @@ public struct ComposeView: View {
         case .cannotEncodeJPEG:   return "Couldn't encode that image to JPEG."
         case .cannotFit(let cap): return "Image is too big to fit under \(cap / 1024) KB even after resizing."
         }
+    }
+    #endif
+
+    #if os(iOS)
+    @MainActor
+    private func ingestCameraCapture(data: Data, pixelWidth: Int, pixelHeight: Int) {
+        guard attachments.count < ComposeText.attachmentLimit else { return }
+        attachments.append(ComposeAttachment(
+            jpegData: data,
+            pixelWidth: pixelWidth,
+            pixelHeight: pixelHeight
+        ))
+        attachmentError = nil
     }
     #endif
 

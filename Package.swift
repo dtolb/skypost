@@ -102,6 +102,7 @@ let package = Package(
             dependencies: [
                 "Auth",
                 "Bluesky",
+                "Camera",
                 "DesignSystem",
                 "AppLogging",
                 "Models",
