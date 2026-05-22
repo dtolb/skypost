@@ -65,6 +65,7 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
+        NSCameraUsageDescription: "Take a photo to attach to your Bluesky post."
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.dtolb.BlueSkyTemplates
