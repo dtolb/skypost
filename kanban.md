@@ -248,6 +248,25 @@ reviewer → code-quality reviewer → mark done.
 - 95/95 tests passing on every commit; `xcodebuild` against iPhone 17 simulator green throughout.
 - Sim verification deferred to Dan (Simulator headless on this Mac per the F-sim memory).
 
+## Phase J1 — Square camera capture ✅
+
+**Spec:** [`docs/specs/2026-05-22-square-camera-capture-design.md`](docs/specs/2026-05-22-square-camera-capture-design.md)
+**Plan:** [`docs/plans/2026-05-22-phase-j1-square-camera-capture.md`](docs/plans/2026-05-22-phase-j1-square-camera-capture.md)
+**Manual verification:** docs/ui-test-backlog.md § Phase J1
+
+Live 1:1 viewfinder in Compose with Use/Retake review, RotationCoordinator-driven EXIF orientation.
+
+### Done
+
+- ✅ **J1.A** — `CameraCapture` AVFoundation session setup: square crop, permission flow, `AVCaptureVideoDataOutput` pipeline
+- ✅ **J1.B** — `CameraPreviewView` UIViewRepresentable + square viewfinder overlay
+- ✅ **J1.C** — Capture + review state machine: `.viewfinder` → `.reviewing(photo)` → Use Photo / Retake
+- ✅ **J1.D** — `RotationCoordinator`-driven EXIF orientation metadata written into captured JPEG
+- ✅ **J1.E** — `CameraButton` in ComposeView wired to camera sheet; disabled at 4-image cap alongside PhotosPicker
+- ✅ **J1.F** — Permission-denied degraded state: "Camera access is off" card with Open Settings link; simulator no-camera card
+- ✅ **J1.G** — Session interruption handling: phone-call banner, session resumes on hang-up
+- ✅ **J1.H** — Manual test plan (docs/ui-test-backlog.md § Phase J1) + kanban entry
+
 ## Phase G — sketch (post-Phase-F)
 
 - **OAuth migration** (deferred until architecture §7.3 trigger fires).

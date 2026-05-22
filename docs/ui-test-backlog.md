@@ -83,3 +83,26 @@
 - Network correctness (covered by `BlueskyTests` unit tests + ATProtoKit's own coverage).
 - Pure logic (validators, parsers, merge helpers — all in `Tests/*`).
 - Visual diffing / snapshot tests — adopt only if pure XCUITest assertions can't catch a class of regression (e.g. layout shifts under Dynamic Type). Tools to evaluate at that point: `swift-snapshot-testing`, but pin a current version and only after we hit the actual problem.
+
+## Phase J1 — Square camera capture
+
+Manual verification, on a physical iPhone/iPad signed into iCloud. Items
+marked ⚠️ require teardown across multiple app sessions.
+
+- [ ] First-launch permission prompt appears the first time camera button is tapped
+- [ ] Granting permission → live square viewfinder, shutter visible
+- [ ] Shutter → review screen shows captured 1:1 photo
+- [ ] Use Photo → sheet dismisses, photo lands in Compose Images as a new row
+- [ ] Attached photo has correct 1:1 aspect ratio in the row thumbnail
+- [ ] Alt-text field is empty and required (Send disabled until non-blank)
+- [ ] Retake from review → returns to live viewfinder, no flicker, session keeps running
+- [ ] Cancel (X) from viewfinder → sheet dismisses, no attachment created
+- [ ] Cancel from review → sheet dismisses, no attachment created
+- [ ] Take 4 photos via camera → camera button + PhotosPicker both disable (4-image cap)
+- [ ] ⚠️ Deny permission once → camera card shows "Camera access is off" with Open Settings
+- [ ] ⚠️ From Settings, toggle camera on → return to app → tap camera button → viewfinder works
+- [ ] ⚠️ Take a photo → leave app → return → camera state is fresh on next open
+- [ ] Phone call mid-capture → banner appears (or capture pauses), recovers cleanly on hang-up
+- [ ] Face-up capture (device flat on a table) → captured EXIF orientation is correct
+- [ ] iPhone 17 simulator → camera button → "No camera on this device" card (not a crash)
+- [ ] Post a captured photo end-to-end → appears on Bluesky with 1:1 aspect ratio
