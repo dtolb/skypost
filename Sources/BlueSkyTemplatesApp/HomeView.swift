@@ -75,7 +75,7 @@ public struct HomeView: View {
                 }
                 .padding(.vertical, 8)
             }
-            .background(Self.pageBackground)
+            .background(BrandColor.pageBackground)
             .navigationTitle("Home")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
@@ -207,19 +207,6 @@ public struct HomeView: View {
         .accessibilityLabel(
             "Sent: \(entry.preview). \(entry.createdAt.formatted(.relative(presentation: .named))). Tap to copy URI."
         )
-    }
-
-    // MARK: - Cross-platform helpers
-
-    /// Grouped-form-style page background. On iOS this is the dynamic
-    /// `systemGroupedBackground`; on macOS we approximate with a light
-    /// gray that contrasts with `Color.white` card surfaces.
-    private static var pageBackground: Color {
-        #if canImport(UIKit)
-        return Color(uiColor: .systemGroupedBackground)
-        #else
-        return Color(white: 0.95)
-        #endif
     }
 
     // MARK: - Copy

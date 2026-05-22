@@ -52,6 +52,12 @@ struct BrandColorTests {
         #expect(a == b)
     }
 
+    @Test func pageBackgroundIsNonClear() {
+        // Smoke: BrandColor.pageBackground resolves to *some* color,
+        // not Color.clear. Cross-platform value (UIKit vs macOS fallback).
+        #expect(BrandColor.pageBackground != Color.clear)
+    }
+
     @Test
     func deterministicColorPaletteMembership() {
         let inputs = [
