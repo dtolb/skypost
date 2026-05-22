@@ -29,15 +29,12 @@ settings:
     SWIFT_TREAT_WARNINGS_AS_ERRORS: NO
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     GENERATE_INFOPLIST_FILE: NO
-    # Ad-hoc signing (`CODE_SIGN_IDENTITY = -`) is enough for simulator
-    # builds and headless CI; it requires no certificate or team and
-    # ensures the entitlements file is embedded so Keychain works.
-    # `CODE_SIGNING_ALLOWED: NO` would skip codesign entirely, which
-    # leaves the binary with empty entitlements and breaks SecItemAdd
-    # (-34018). Dan can swap to a Team ID in the project UI when building
-    # to a device.
+    # iCloud/CloudKit entitlements require development signing. Keep these
+    # settings in XcodeGen so regenerating the project does not fall back to
+    # "Sign to Run Locally", which Xcode rejects for iCloud capabilities.
     CODE_SIGN_STYLE: Automatic
-    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: 49LQ789275
+    CODE_SIGN_IDENTITY: Apple Development
 
 targets:
   BlueSkyTemplates:
@@ -74,12 +71,9 @@ targets:
         PRODUCT_NAME: BlueSkyTemplates
         TARGETED_DEVICE_FAMILY: "1,2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        # Re-assert ad-hoc signing at the target level — Xcodegen defaults
-        # iOS application targets to `CODE_SIGN_IDENTITY = "iPhone Developer"`,
-        # which overrides the project-wide `"-"` and would require a real
-        # signing certificate. Pin it back to `-` so simulator and CI builds
-        # sign ad-hoc with no team or cert.
-        CODE_SIGN_IDENTITY: "-"
+        # Re-assert development signing at the target level so Xcode's
+        # automatic provisioning can satisfy iCloud/CloudKit entitlements.
+        CODE_SIGN_IDENTITY: Apple Development
         # Entitlements file ships a single keychain-access-group matching
         # this bundle id. Without an entitlements file at all, simulator
         # builds hit errSecMissingEntitlement (-34018) the first time

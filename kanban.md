@@ -40,6 +40,7 @@ reviewer → code-quality reviewer → mark done.
 ### Caveats
 
 - Production/device sync still needs Apple Developer provisioning and CloudKit container/schema setup for `iCloud.com.dtolb.BlueSkyTemplates`.
+- XcodeGen now pins automatic Apple Development signing for team `49LQ789275`; CloudKit/iCloud entitlements cannot use "Sign to Run Locally".
 - The simulator build emits existing `LiveExternalLinkResolver` Sendable warnings unrelated to Phase J.
 
 ## Phase A — Templates CRUD UI ✅ (READY TO MERGE per final review)

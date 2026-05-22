@@ -1042,10 +1042,11 @@ different model for personal apps.
 The code path now uses private CloudKit-backed SwiftData for templates:
 `TemplateStorage.makeCloudContainer()` targets
 `iCloud.com.dtolb.BlueSkyTemplates`, and the app entitlement declares the
-same container. Simulator builds work with ad-hoc signing, but real
-device/TestFlight/App Store sync still requires the Apple Developer
-CloudKit container, provisioning profile, and schema deployment to be
-configured for the bundle ID.
+same container. XcodeGen pins automatic Apple Development signing for team
+`49LQ789275` because iCloud/CloudKit entitlements cannot be signed with
+Xcode's "Sign to Run Locally" identity. Real device/TestFlight/App Store
+sync still requires the Apple Developer CloudKit container, provisioning
+profile, and schema deployment to be configured for the bundle ID.
 
 ### iOS minimum at later revisits
 Rule: target current major minus zero for a personal app. Re-evaluate

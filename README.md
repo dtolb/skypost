@@ -21,6 +21,8 @@ Prerequisites:
 - XcodeGen — `brew install xcodegen`.
 - An **iPhone 17** simulator from the iOS 26 runtime (iPhone 15 was
   retired in Xcode 26).
+- Apple Development signing for team `49LQ789275`. The iCloud/CloudKit
+  entitlements cannot use Xcode's "Sign to Run Locally" identity.
 
 Commands:
 
@@ -40,7 +42,9 @@ xcodebuild build \
 ```
 
 The `.xcodeproj` is gitignored and must be regenerated from
-`App/project.yml` after every checkout.
+`App/project.yml` after every checkout. XcodeGen pins automatic
+development signing for the app target because iCloud entitlements require
+a real Apple Development identity.
 
 ## Project layout
 

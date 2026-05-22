@@ -58,6 +58,7 @@
 - `TemplateListView` imports and exports template JSON through native SwiftUI file APIs.
 - `AppRoot` uses `TemplateStorage.makeCloudContainer()` and logs a fallback if local storage is needed.
 - App entitlements include CloudKit services and `iCloud.com.dtolb.BlueSkyTemplates`.
+- XcodeGen uses automatic Apple Development signing for team `49LQ789275`; iCloud entitlements cannot use "Sign to Run Locally".
 - `Info.plist` and XcodeGen config include `UIBackgroundModes.remote-notification`.
 - `CreateTemplateIntent` and an app shortcut expose template creation to Shortcuts.
 - Card/list surfaces now use dynamic `BrandColor.cardBackground` instead of hard-coded light-only white fills.
