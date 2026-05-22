@@ -258,6 +258,7 @@ public struct ComposeView: View {
             // tab), but still load-bearing for cold-launch-on-Templates-tab
             // flows and for in-Compose picker selections that race
             // ComposeView's first body evaluation.
+            // consume() below re-triggers this (pending: n → nil); guard short-circuits.
             .onChange(of: applier?.pending?.tick, initial: true) { _, newTick in
                 guard let newTick,
                       let pending = applier?.pending,
@@ -608,6 +609,10 @@ public struct ComposeView: View {
         #elseif os(macOS)
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(string, forType: .string)
+        #else
+        // visionOS/watchOS/etc. — no clipboard surface today. Intentional no-op;
+        // revisit if a new target ships.
+        _ = string
         #endif
     }
 }
