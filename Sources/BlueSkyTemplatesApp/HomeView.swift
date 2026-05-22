@@ -111,14 +111,19 @@ public struct HomeView: View {
             spacing: 8
         ) {
             actionCell(systemName: "square.and.pencil", title: "Compose",   action: .compose)
-            actionCell(systemName: "plus",              title: "New",       action: .newTemplate)
+            actionCell(systemName: "plus",              title: "New",       action: .newTemplate, accessibilityLabel: "New template")
             actionCell(systemName: "doc.text",          title: "Templates", action: .templates)
             actionCell(systemName: "gearshape",         title: "Settings",  action: .settings)
         }
         .padding(.horizontal, 16)
     }
 
-    private func actionCell(systemName: String, title: String, action: HomeAction) -> some View {
+    private func actionCell(
+        systemName: String,
+        title: String,
+        action: HomeAction,
+        accessibilityLabel: String? = nil
+    ) -> some View {
         Button {
             handleHomeAction(
                 action,
@@ -137,7 +142,7 @@ public struct HomeView: View {
             .background(Color.white, in: .rect(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(title)
+        .accessibilityLabel(accessibilityLabel ?? title)
     }
 
     @ViewBuilder
