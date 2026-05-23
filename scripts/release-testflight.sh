@@ -429,8 +429,10 @@ install_app_store_profile() {
         || die "provisioning profile '${profile_name}' is not an App Store profile; it contains ProvisionedDevices"
     [[ "$provisions_all_devices" != "true" ]] \
         || die "provisioning profile '${profile_name}' is not an App Store profile; it provisions all devices"
-    DISTRIBUTION_IDENTITY_SHA1="$(matching_profile_distribution_identity "$profile_plist")" \
-        || die "provisioning profile '${profile_name}' does not include any local Apple Distribution identity"
+    if ! DISTRIBUTION_IDENTITY_SHA1="$(matching_profile_distribution_identity "$profile_plist")"; then
+        DISTRIBUTION_IDENTITY_SHA1="$(distribution_identity_sha1)"
+        log signing "could not prove '${profile_name}' contains a local Apple Distribution identity; Xcode export will validate the pairing"
+    fi
 
     local mobile_profiles_dir xcode_profiles_dir
     mobile_profiles_dir="${HOME}/Library/MobileDevice/Provisioning Profiles"
