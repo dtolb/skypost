@@ -146,6 +146,11 @@ require_env() {
     fi
 }
 
+has_local_distribution_identity() {
+    security find-identity -v -p codesigning 2>/dev/null \
+        | grep -Eq '"(Apple|iOS) Distribution:'
+}
+
 preflight() {
     log preflight "checking tools and inputs"
 
@@ -189,6 +194,11 @@ preflight() {
         log preflight "export       skipped"
     else
         log preflight "export       TestFlight upload"
+        if has_local_distribution_identity; then
+            log signing "local Apple Distribution identity found"
+        else
+            log signing "no local Apple Distribution identity; Xcode must cloud-sign using App Store Connect access"
+        fi
     fi
 }
 
@@ -307,21 +317,50 @@ export_upload() {
     local asc_key_path="${ASC_KEY_PATH:-<ASC_KEY_PATH>}"
     local asc_key_id="${ASC_KEY_ID:-<ASC_KEY_ID>}"
     local asc_issuer_id="${ASC_ISSUER_ID:-<ASC_ISSUER_ID>}"
-    run xcodebuild \
-        -exportArchive \
-        -archivePath "$ARCHIVE_PATH" \
-        -exportPath "$EXPORT_DIR" \
-        -exportOptionsPlist "$export_options" \
-        -allowProvisioningUpdates \
-        -authenticationKeyPath "$asc_key_path" \
-        -authenticationKeyID "$asc_key_id" \
+    local args=(
+        xcodebuild
+        -exportArchive
+        -archivePath "$ARCHIVE_PATH"
+        -exportPath "$EXPORT_DIR"
+        -exportOptionsPlist "$export_options"
+        -allowProvisioningUpdates
+        -authenticationKeyPath "$asc_key_path"
+        -authenticationKeyID "$asc_key_id"
         -authenticationKeyIssuerID "$asc_issuer_id"
+    )
+
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        run "${args[@]}"
+        return
+    fi
+
+    write_release_info pending
+
+    set +e
+    "${args[@]}"
+    local status=$?
+    set -e
+    if [[ "$status" -ne 0 ]]; then
+        cat >&2 <<'EOF'
+[export] TestFlight export failed.
+[export] If the log mentions "Cloud signing permission error" or no "iOS Distribution" certificate, fix one of these:
+[export] - grant the App Store Connect account/API key cloud-managed distribution certificate access; or
+[export] - install an Apple Distribution certificate with its private key on the runner before this job runs.
+EOF
+        exit "$status"
+    fi
 }
 
 write_release_info() {
+    local upload_status="${1:-}"
+
     if [[ "$DRY_RUN" -eq 1 ]]; then
         log info "would write ${INFO_PATH}"
         return
+    fi
+
+    if [[ -z "$upload_status" ]]; then
+        upload_status="$([[ "$SKIP_EXPORT" -eq 1 ]] && printf 'skipped' || printf 'submitted')"
     fi
 
     cat > "$INFO_PATH" <<EOF
@@ -331,7 +370,7 @@ version=${VERSION}
 build_number=${BUILD_NUMBER_VALUE}
 archive_path=${ARCHIVE_PATH}
 export_path=${EXPORT_DIR}
-testflight_upload=$([[ "$SKIP_EXPORT" -eq 1 ]] && printf 'skipped' || printf 'submitted')
+testflight_upload=${upload_status}
 commit=${CI_COMMIT_SHA:-unknown}
 tag=${CI_COMMIT_TAG:-none}
 EOF

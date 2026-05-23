@@ -31,6 +31,11 @@ Before a tag-driven upload job can be reliable:
   receive it as masked/file GitLab CI variables and invoke `xcodebuild` with
   `-allowProvisioningUpdates`, `-authenticationKeyPath`,
   `-authenticationKeyID`, and `-authenticationKeyIssuerID`.
+- Distribution signing is available to the runner. The preferred path is
+  cloud-managed distribution signing with the App Store Connect account/key
+  allowed to use cloud-managed distribution certificates. The fallback is a
+  local Apple Distribution certificate, including its private key, installed in
+  the runner keychain.
 
 ## Versioning
 
@@ -53,13 +58,29 @@ previous attempt already reached App Store Connect.
   credentials.
 - Tags matching `vX.Y.Z` run `release-testflight`, which signs, archives, and
   uploads to internal TestFlight with App Store Connect API credentials.
-- The release archive leaves `CODE_SIGN_IDENTITY` to Xcode automatic signing.
-  Forcing `Apple Distribution` at archive time conflicts with automatically
-  signed package resource bundles; distribution signing happens during
-  `-exportArchive`.
+- The release script does not pass a global `CODE_SIGN_IDENTITY` override.
+  Forcing `Apple Distribution` globally at archive time conflicts with
+  automatically signed package resource bundles.
+- Debug builds explicitly use `Apple Development`; Release builds explicitly
+  use `Apple Distribution` for the app target so archive/export entitlements
+  line up with TestFlight expectations.
 - Release intermediates are written to a per-job temp directory by default.
   Set `BUILD_DIR` only when intentionally keeping an archive for local
   inspection.
+
+## Signing failures
+
+If the tag job archives successfully and then fails during export with
+`Cloud signing permission error` or `No signing certificate "iOS Distribution"
+found`, the GitLab variables are reaching Xcode but the runner cannot complete
+distribution signing.
+
+Fix one of these two paths:
+
+- Grant the App Store Connect account/API key access to cloud-managed
+  distribution certificates.
+- Install an active Apple Distribution certificate with its private key on the
+  runner before the release job runs.
 
 ## Archive shape
 

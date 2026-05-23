@@ -32,12 +32,11 @@ settings:
     MARKETING_VERSION: "2.1.0"
     CURRENT_PROJECT_VERSION: "1"
     APS_ENVIRONMENT: development
-    # iCloud/CloudKit entitlements require development signing. Keep these
+    # iCloud/CloudKit entitlements require team-managed signing. Keep these
     # settings in XcodeGen so regenerating the project does not fall back to
     # "Sign to Run Locally", which Xcode rejects for iCloud capabilities.
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: 49LQ789275
-    CODE_SIGN_IDENTITY: Apple Development
 
 targets:
   BlueSkyTemplates:
@@ -75,9 +74,6 @@ targets:
         PRODUCT_NAME: BlueSkyTemplates
         TARGETED_DEVICE_FAMILY: "1,2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        # Re-assert development signing at the target level so Xcode's
-        # automatic provisioning can satisfy iCloud/CloudKit entitlements.
-        CODE_SIGN_IDENTITY: Apple Development
         # Entitlements file ships a single keychain-access-group matching
         # this bundle id. Without an entitlements file at all, simulator
         # builds hit errSecMissingEntitlement (-34018) the first time
@@ -88,6 +84,18 @@ targets:
         # migration (~30 lines: read-old / write-new / delete-old).
         CODE_SIGN_ENTITLEMENTS: BlueSkyTemplates.entitlements
         SWIFT_VERSION: "6.0"
+      configs:
+        Debug:
+          # Device debug builds need a development identity for iCloud,
+          # CloudKit, push, and keychain entitlements.
+          CODE_SIGN_IDENTITY: Apple Development
+          APS_ENVIRONMENT: development
+        Release:
+          # TestFlight/App Store exports must use distribution signing. If no
+          # local Apple Distribution identity is installed, Xcode can cloud-sign
+          # during archive/export when the App Store Connect account has access.
+          CODE_SIGN_IDENTITY: Apple Distribution
+          APS_ENVIRONMENT: production
     dependencies:
       - package: BlueSkyTemplates
         product: BlueSkyTemplatesApp
