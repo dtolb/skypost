@@ -92,6 +92,13 @@ release-testflight:
   variables:
     GIT_DEPTH: "0"
   resource_group: testflight
+  before_script:
+    # Same unattended signing keychain setup used by the macOS release job.
+    # The keychain must contain an Apple Distribution identity for local iOS
+    # distribution signing; otherwise Xcode falls back to App Store Connect
+    # cloud signing during archive/export.
+    - security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+    - 'security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" || true'
   script:
     - command -v xcodegen >/dev/null 2>&1 || brew install xcodegen
     - chmod +x scripts/release-testflight.sh

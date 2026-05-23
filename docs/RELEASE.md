@@ -36,6 +36,12 @@ Before a tag-driven upload job can be reliable:
   allowed to use cloud-managed distribution certificates. The fallback is a
   local Apple Distribution certificate, including its private key, installed in
   the runner keychain.
+- The `xcode` GitLab runner uses the same `KEYCHAIN_PATH` and
+  `KEYCHAIN_PASSWORD` group variables as `dans-extra-snap` to unlock the
+  unattended signing keychain. A `Developer ID Application` identity in that
+  keychain is macOS-only; TestFlight export needs an `Apple Distribution` or
+  `iOS Distribution` identity, unless cloud-managed distribution signing is
+  permitted.
 
 ## Versioning
 
@@ -58,6 +64,9 @@ previous attempt already reached App Store Connect.
   credentials.
 - Tags matching `vX.Y.Z` run `release-testflight`, which signs, archives, and
   uploads to internal TestFlight with App Store Connect API credentials.
+- `release-testflight` unlocks the shared CI signing keychain before the
+  archive/upload script runs. This mirrors the macOS release job, but uses iOS
+  distribution signing instead of Developer ID/notary signing.
 - The release script does not pass a global `CODE_SIGN_IDENTITY` override.
   Forcing `Apple Distribution` globally at archive time conflicts with
   automatically signed package resource bundles.

@@ -72,6 +72,8 @@ Environment:
                           .p8 key. Required for upload.
   ASC_KEY_ID              App Store Connect API key ID. Required for upload.
   ASC_ISSUER_ID           App Store Connect API issuer ID. Required for upload.
+  KEYCHAIN_PATH           Optional signing keychain to unlock before upload.
+  KEYCHAIN_PASSWORD       Password for KEYCHAIN_PATH.
   BUILD_DIR               Optional intermediates directory.
 EOF
 }
@@ -147,8 +149,33 @@ require_env() {
 }
 
 has_local_distribution_identity() {
-    security find-identity -v -p codesigning 2>/dev/null \
-        | grep -Eq '"(Apple|iOS) Distribution:'
+    if [[ -n "${KEYCHAIN_PATH:-}" ]]; then
+        security find-identity -v -p codesigning "$KEYCHAIN_PATH" 2>/dev/null \
+            | grep -Eq '"(Apple|iOS) Distribution:'
+    else
+        security find-identity -v -p codesigning 2>/dev/null \
+            | grep -Eq '"(Apple|iOS) Distribution:'
+    fi
+}
+
+unlock_signing_keychain() {
+    if [[ "$UNSIGNED_ARCHIVE" -eq 1 || "$DRY_RUN" -eq 1 ]]; then
+        return
+    fi
+
+    if [[ -z "${KEYCHAIN_PATH:-}" && -z "${KEYCHAIN_PASSWORD:-}" ]]; then
+        log signing "no signing keychain configured; Xcode must use login keychain or cloud signing"
+        return
+    fi
+
+    require_env KEYCHAIN_PATH "path to signing keychain"
+    require_env KEYCHAIN_PASSWORD "password for signing keychain"
+    [[ -f "$KEYCHAIN_PATH" ]] || die "KEYCHAIN_PATH does not point to a file"
+
+    log signing "unlocking signing keychain ${KEYCHAIN_PATH}"
+    security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+    security set-key-partition-list -S apple-tool:,apple: -s \
+        -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" >/dev/null 2>&1 || true
 }
 
 preflight() {
@@ -193,6 +220,7 @@ preflight() {
     if [[ "$SKIP_EXPORT" -eq 1 ]]; then
         log preflight "export       skipped"
     else
+        unlock_signing_keychain
         log preflight "export       TestFlight upload"
         if has_local_distribution_identity; then
             log signing "local Apple Distribution identity found"
