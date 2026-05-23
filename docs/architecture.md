@@ -1016,11 +1016,12 @@ or a Share Extension.
 1. ✅ **Scaffold** — done. SPM workspace, five external deps wired, CI on `xcode` runner emitting JUnit. ATProtoKit hello-world post path proved out (retired in Phase D1).
 2. ✅ **Templates port** — done (Phase A, MR !2). `@Model Template`, SwiftData CRUD UI (list / sheet-presented new / push-presented edit / swipe delete), hashtag parser. v1 UserDefaults→SwiftData migration **skipped** (no v1 users on this device).
 3. ✅ **Auth** — done. `AuthProvider` protocol + `AppPasswordAuth`, ATProtoKit `AppleSecureKeychain`, login screen with closed `AuthFailureReason` mapping, `defer` + explicit `catch is CancellationError` in `restore()` (Phase D1).
-4. ✅ **Compose** — done. Text-only composer (Phase B, MR !2) with 300-grapheme counter and four-state SendState machine; image attachments (Phase C, MR !3) via PhotosPicker + ImageProcessor (ImageIO-based, ≤1 MB JPEG) + per-image required alt text + aspect-ratio embed. Auto-facets via ATProtoKit per §8.3.
+4. ✅ **Compose** — done. Text-only composer (Phase B, MR !2) with 300-grapheme counter and four-state SendState machine; image attachments (Phase C, MR !3) via PhotosPicker + ImageProcessor (ImageIO-based, ≤1 MB JPEG) + per-image required alt text + aspect-ratio embed. Template picker, external link cards, and custom camera capture are shipped. Auto-facets via ATProtoKit per §8.3.
 5. ✅ **Polish** — done (Phase D, MR !4). Pow send-spray + error-shake with `accessibilityReduceMotion` gates + paired haptics. `Nuke` LazyImage **deferred** until a CDN-URL surface (e.g. feed) arrives.
-6. ✅ **Tests + CI** — Swift Testing throughout (111 cases across 25 suites as of Phase J). CI uses `swift test --xunit-output` for GitLab JUnit reports plus an XcodeGen simulator build.
+6. ✅ **Tests + CI** — Swift Testing throughout (139 cases across 32 suites as of Phase J2). CI uses `swift test --xunit-output` for GitLab JUnit reports plus an XcodeGen simulator build.
 7. ✅ **iCloud template storage + sharing** — done (Phase J). Private CloudKit-backed SwiftData for templates, JSON import/export, UUID upsert, CloudKit entitlements, `remote-notification` background mode, and a Create Template App Intent.
-8. ⏸ **OAuth migration** — deferred until §7.3 trigger fires.
+8. ✅ **Camera capture** — done (Phases J1/J2). Custom `AVCaptureSession` + `AVCapturePhotoOutput` flow with Default/1:1 framing, portrait/landscape capture framing, virtual-camera zoom chips, preview/review UI, and post-capture JPEG crop.
+9. ⏸ **OAuth migration** — deferred until §7.3 trigger fires.
 
 ---
 

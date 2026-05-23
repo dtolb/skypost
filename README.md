@@ -8,10 +8,12 @@ A personal iOS app for posting templated Bluesky posts.
 Templates CRUD, Compose with text/images/link cards, template picker and
 template apply flow, Mantis styling, iCloud-backed template storage,
 template JSON import/export, a Create Template App Intent, and dark-mode
-safe card/icon surfaces.
+safe card/icon surfaces. Compose also has custom camera capture with
+Default/1:1 framing, portrait/landscape capture framing, and native-style
+rear-camera zoom chips.
 
 The live task board is [`kanban.md`](kanban.md). The most recent plan is
-[`docs/plans/2026-05-22-icloud-template-storage.md`](docs/plans/2026-05-22-icloud-template-storage.md).
+[`docs/plans/2026-05-22-phase-j2-camera-controls.md`](docs/plans/2026-05-22-phase-j2-camera-controls.md).
 
 ## Build & run
 
@@ -66,6 +68,8 @@ a real Apple Development identity.
     JSON template exchange, and Templates CRUD UI.
   - `Compose` — post-composition feature with text, image attachment,
     external link card, template picker, and send-state handling.
+  - `Camera` — AVFoundation photo capture flow with ratio/orientation
+    framing, zoom chips, preview/review UI, and post-capture JPEG crop.
   - `DesignSystem` — typography, color, gradient, card, header, icon, and
     hero primitives, including dynamic page/card/icon surfaces for light and
     dark appearances.

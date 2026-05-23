@@ -1,19 +1,21 @@
 # Kanban — BlueSkyTemplates v2 implementation
 
-> **Handoff state — 2026-05-22:** `main` and `origin/main` both point at `0d56a34` before the current working-tree changes. Phase J is implemented locally: private CloudKit-backed SwiftData for templates, versioned JSON import/export with UUID upsert, CloudKit entitlements, `remote-notification` background mode, a narrow Create Template App Intent, and dark-mode card/icon surface fixes. Verification passed with 111/111 Swift Testing cases, GitLab-style xUnit output, XcodeGen regeneration, CI-style iPhone 17 simulator build, and XcodeBuildMCP build/run launch plus dark-mode smoke capture.
+> **Handoff state — 2026-05-22:** `main` and `origin/main` are synchronized after the camera-control fix and markdown cleanup. The active app includes CloudKit-backed templates, versioned template import/export, App Intents, dark-mode-safe surfaces, and custom camera capture with ratio/orientation/zoom controls. Local validation after the latest camera merge passed `swift test` with 139 Swift Testing cases, iPhone 17 simulator build/run, runtime log scan, and fresh-context review. Physical-device camera verification remains tracked in `docs/ui-test-backlog.md`.
 
-**Current branch:** `main` (local HEAD == `origin/main` at `0d56a34`; Phase J is currently uncommitted working-tree work)
-**Remote status:** `origin/main` is current with local `main`; secondary `github/main` is behind and not the CI source of truth.
-**Open MRs:** none tracked here after the Phase I merge to `main`.
+**Current branch:** `main` (local HEAD == `origin/main`)
+**Remote status:** `origin/main` is current with local `main`; secondary `github/main` is not the CI source of truth.
+**Open MRs:** none tracked here.
 
 **Per-phase plans:**
 - [Phase A — Templates CRUD](docs/plans/2026-05-21-phase-a-templates-crud.md)
 - [Phase B — Compose (text)](docs/plans/2026-05-21-phase-b-compose-text.md)
 - [Phase C — Compose (images)](docs/plans/2026-05-21-phase-c-compose-images.md)
 - [Phase D — Polish + Pow](docs/plans/2026-05-21-phase-d-polish.md)
-- [Phase E — Templates → Composer hand-off](docs/plans/2026-05-21-phase-e-templates-to-compose.md) (READY TO MERGE per final review)
-- [Phase F — External link card embed](docs/plans/2026-05-21-phase-f-external-link-card.md) (in flight)
+- [Phase E — Templates → Composer hand-off](docs/plans/2026-05-21-phase-e-templates-to-compose.md)
+- [Phase F — External link card embed](docs/plans/2026-05-21-phase-f-external-link-card.md)
 - [Phase J — iCloud template storage, exchange, and App Intents](docs/plans/2026-05-22-icloud-template-storage.md)
+- [Phase J1 — Square camera capture](docs/plans/2026-05-22-phase-j1-square-camera-capture.md)
+- [Phase J2 — Native camera controls](docs/plans/2026-05-22-phase-j2-camera-controls.md)
 
 Orchestrator is the main session; implementers are fresh `swift-coder`
 (Opus 4.7) subagents per task. Each task gets: implementer → spec-compliance
@@ -22,7 +24,7 @@ reviewer → code-quality reviewer → mark done.
 ## Phase J — iCloud template storage, exchange, and App Intents ✅
 
 **Plan:** [`docs/plans/2026-05-22-icloud-template-storage.md`](docs/plans/2026-05-22-icloud-template-storage.md)
-**Branch:** `main` working tree
+**Branch:** shipped on `main`
 
 ### Done
 
@@ -35,7 +37,7 @@ reviewer → code-quality reviewer → mark done.
 - ✅ **J7** — Minimal `CreateTemplateIntent` plus app-target `AppShortcutsProvider`.
 - ✅ **J8** — Dynamic dark-mode card/list surfaces through `BrandColor.cardBackground`; removed hard-coded white fills from the active app UI.
 - ✅ **J9** — Adaptive `LeadIcon` styling: light mode keeps solid tint + white glyphs; dark mode uses a softer tinted surface + tint glyphs.
-- ✅ **J10** — Verification: `swift test` 111/111, `swift test --xunit-output`, `xcodegen generate`, CI-style `xcodebuild build`, and XcodeBuildMCP `build_run_sim` plus dark-mode smoke capture.
+- ✅ **J10** — Verification at the Phase J boundary: `swift test`, `swift test --xunit-output`, `xcodegen generate`, CI-style `xcodebuild build`, and XcodeBuildMCP `build_run_sim` plus dark-mode smoke capture.
 
 ### Caveats
 
@@ -43,7 +45,7 @@ reviewer → code-quality reviewer → mark done.
 - XcodeGen now pins automatic Apple Development signing for team `49LQ789275`; CloudKit/iCloud entitlements cannot use "Sign to Run Locally".
 - The simulator build emits existing `LiveExternalLinkResolver` Sendable warnings unrelated to Phase J.
 
-## Phase A — Templates CRUD UI ✅ (READY TO MERGE per final review)
+## Phase A — Templates CRUD UI ✅
 
 - ✅ **A1** — SwiftData CRUD tests + `Template.touch()` (commits `c3f63f9`, `251d207`; 6 tests passing)
 - ✅ **A2** — TemplateListView with @Query + swipe-to-delete + stub editor (commit `01a06e7`; 29 tests passing)
@@ -53,7 +55,7 @@ reviewer → code-quality reviewer → mark done.
 
 **Phase A final review:** 11 files, +514 / -14, 35/35 tests green, xcodebuild green. Branch left pending push/merge for user decision.
 
-## Phase B — Compose (text-only) ✅ (READY TO MERGE per final review)
+## Phase B — Compose (text-only) ✅
 
 - ✅ **B1** — `APIClient.createPost(text:)` + `ComposeText` validator + 6 tests (commit `c723e4f`; 40/40 tests passing)
 - ✅ **B2** — `ComposeView` + cancellation-safe `.task(id:)` auto-clear (commit `1b75641`; xcodebuild + 40/40 tests). Side effect: closes plan #9 (env key moved to Bluesky module).
@@ -89,7 +91,7 @@ reviewer → code-quality reviewer → mark done.
 - `ImageProcessor.swift:119` vs `ComposeTests.swift:131` — `CFString` vs `String`-keyed CGImageDestination dict style inconsistency between production and fixture.
 - `ComposeTests.swift:107` — `makeFixtureJPEG` could nest as a `static` on the suite struct for tighter scoping.
 
-## Phase D — Polish + Pow effects ✅ (READY TO MERGE per final review)
+## Phase D — Polish + Pow effects ✅
 
 - ✅ **D1** — polish sweep + `postHelloWorld()` retired + plans #16/#17 closed + CancellationError fix (commits `83f87b2`, `c9c24fa`; 53/53 tests passing)
 - ✅ **D2** — `Package.swift` deps strip (plan #14): DesignSystem→`[]`, Pow added to Auth+Compose (commit `5a92988`; 53/53 tests passing, xcodebuild green)
@@ -99,7 +101,7 @@ reviewer → code-quality reviewer → mark done.
 - `ComposeView.swift:75-76` — `AnyShapeStyle` wrapper on both ternary branches. Cosmetic; revisit if it ever blocks an edit.
 - `ComposeView.swift:346-353` — `copy(_:)` is `#if os(iOS)` / `#elseif os(macOS)` with no `#else`. Silent no-op on visionOS / watchOS targets if added.
 
-## Phase E — Templates → Composer hand-off ✅ (READY TO MERGE per final review)
+## Phase E — Templates → Composer hand-off ✅
 
 ### In Progress
 - _none — phase shipped pending Dan's manual Simulator verification._
@@ -122,7 +124,7 @@ reviewer → code-quality reviewer → mark done.
 - E3 nit — `TemplateEditorView` Use Template button uses the STORED `template.body/hashtags`, not the user's unsaved `bodyText/hashtagsRaw` `@State`. If user edits then taps Use Template, edits are ignored. Per-plan literal behavior; revisit with explicit UX call (auto-save? transient apply? gate behind `canSave`?).
 - E4 nit — `ComposeView.onChange(of: applier?.pending?.tick)` re-fires once after `applier?.consume()` (pending: n → nil); guard handles it cleanly but a future reader has to derive that. One-line `// consume() below re-triggers; guard short-circuits` would document it.
 
-## Phase F — External link card embed ✅ (READY TO MERGE per final review)
+## Phase F — External link card embed ✅
 
 ### In Progress
 - _none — Sim verification deferred to Dan (Simulator headless on this Mac); MR !6 opened._

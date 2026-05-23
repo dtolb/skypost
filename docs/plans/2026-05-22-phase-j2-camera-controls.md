@@ -21,7 +21,7 @@
 - [x] **J2.E — AVFoundation session wiring.** Prefer virtual back camera, expose selected ratio/orientation/zoom state, ramp zoom changes on the session queue, and process captures through `CenterAspectCrop`.
 - [x] **J2.F — Camera sheet UI.** Rename `SquareCameraView` to `CameraCaptureView`; add ratio segmented control, orientation icon toggles, and zoom chips while keeping the Use/Retake review flow.
 - [x] **J2.G — Compose integration.** Present `CameraCaptureView` from Compose; downstream `ComposeAttachment` ingestion stays unchanged.
-- [x] **J2.H — Verification.** Run `swift test`, regenerate XcodeGen project, run iPhone 17 simulator `xcodebuild build`, run the app on simulator, and complete fresh-context subagent review before opening the MR.
+- [x] **J2.H — Verification.** Run `swift test`, regenerate XcodeGen project, run iPhone 17 simulator build/run, scan runtime logs for the reported camera errors, and complete fresh-context subagent review.
 
 ## Verification commands
 
@@ -32,3 +32,5 @@ xcodebuild build -project App/BlueSkyTemplates.xcodeproj -scheme BlueSkyTemplate
 ```
 
 Simulator limitation: iPhone 17 Simulator has no real camera device, so local UI validation can verify sheet presentation and the unavailable-camera card. Physical-device verification is still needed for live preview, zoom switching, and real capture output.
+
+Merge checkpoint: MR !11 merged to `main` after pipeline 346 passed. Local `main` was fast-forwarded to the merge commit and `swift test` passed with 139 tests.

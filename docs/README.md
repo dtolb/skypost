@@ -8,4 +8,4 @@ Long-lived planning and review artifacts for the v2 rewrite. Keep this folder sm
 
 The architecture spec is [`architecture.md`](architecture.md) — the source of truth for the v2 target stack, module boundaries, and patterns.
 
-Current implementation checkpoint: [`plans/2026-05-22-icloud-template-storage.md`](plans/2026-05-22-icloud-template-storage.md).
+Current implementation checkpoint: [`plans/2026-05-22-phase-j2-camera-controls.md`](plans/2026-05-22-phase-j2-camera-controls.md).

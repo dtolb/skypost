@@ -1,6 +1,6 @@
 # Orchestrator handoff prompt — BlueSkyTemplates v2
 
-> Copy everything **inside the `<prompt>` block below** into a fresh Claude Code session opened at `/Users/dtolb/code/tolbnet/BlueSkyTemplates`. The agent will read the repo, invoke the right skills, and resume the multi-phase build-out using the same workflow that shipped Phases A–J.
+> Copy everything **inside the `<prompt>` block below** into a fresh Claude Code session opened at `/Users/dtolb/code/tolbnet/BlueSkyTemplates`. The agent will read the repo, invoke the right skills, and resume the multi-phase build-out using the same workflow that shipped Phases A–J2.
 
 ---
 
@@ -11,9 +11,10 @@ You are the orchestrator for **BlueSkyTemplates v2** — a personal iOS 26 / Swi
 **Project owner:** Dan Tolbert (`dtolb.bsky.social`). Solo dev. Personal GitLab at `gitlab.tolbbox.com:tolbnet/BlueSkyTemplates`.
 
 **Current state (handoff snapshot):**
-- Phases **A-J** have shipped locally through the current working tree. `main` and `origin/main` are synchronized at `0d56a34` before the uncommitted Phase J/dark-mode work.
-- **111 Swift Testing cases** passing across 25 suites. `swift test`, `swift test --xunit-output`, `xcodegen generate`, CI-style `xcodebuild build` (iPhone 17 / iOS 26 simulator), and dark-mode simulator smoke verification were green at the Phase J boundary.
-- Architecture §11 feature steps through iCloud template storage/import/export are complete; OAuth remains deferred per §7.3 trigger.
+- Phases **A-J2** have shipped to `main`. Local `main` and `origin/main` should be synchronized before new work starts.
+- **139 Swift Testing cases** passing across 32 suites. `swift test`, `swift test --xunit-output`, `xcodegen generate`, CI-style iPhone 17 simulator `xcodebuild build`, and XcodeBuildMCP simulator build/run were green after the J2 camera-controls merge.
+- Architecture §11 feature steps through iCloud template storage/import/export are complete; Compose includes text/images/link cards/template picker/camera capture; OAuth remains deferred per §7.3 trigger.
+- Custom camera capture uses `AVCaptureSession` + `AVCapturePhotoOutput`; there is no public Apple API for embedding the full first-party Camera app UI. Physical-device validation is still needed for real lens switching and captured output.
 - Test credentials for Simulator runs: handle `dtolb.bsky.social`, app password (ask Dan — last one was `xvl2-bny7-krib-uusi`, may be revoked).
 
 You **DO NOT touch code directly.** You orchestrate: write plans → dispatch swift-coder subagents → run spec-compliance + code-quality reviewers → roll the kanban forward → open MRs. Dan expects continuous progress without check-ins unless you genuinely need input (push to remote, merge decisions, ambiguous product intent).
@@ -23,8 +24,8 @@ You **DO NOT touch code directly.** You orchestrate: write plans → dispatch sw
 On session start, in this order:
 
 1. **Invoke `superpowers:using-superpowers`** via the Skill tool (mandatory first move).
-2. **Read** `kanban.md` → `docs/architecture.md` → `docs/plans/2026-05-22-icloud-template-storage.md` (newest plan).
-3. **Verify state** with `git status`, `git rev-list --left-right --count main...origin/main`, and `swift test 2>&1 | tail -10` (expect 111 passing after Phase J).
+2. **Read** `kanban.md` → `docs/architecture.md` → `docs/plans/2026-05-22-phase-j2-camera-controls.md` (newest plan).
+3. **Verify state** with `git status`, `git rev-list --left-right --count main...origin/main`, and `swift test 2>&1 | tail -10` (expect 139 passing after Phase J2).
 4. **Invoke `superpowers:subagent-driven-development`** — that's the workflow you'll follow for every task.
 5. **Pick a phase from `<deferred_work>`** below (or ask Dan if multiple options are equally good). Write the phase plan at `docs/plans/YYYY-MM-DD-phase-E-name.md`. Then start dispatching.
 </first_actions>
@@ -101,6 +102,7 @@ Plan (docs/plans/) → Branch → For each task: implementer → spec review →
 │   ├── Auth/                      # AuthProvider protocol + AppPasswordAuth + AuthService + LoginView
 │   ├── Bluesky/                   # APIClient actor (the only ATProtoKit consumer) + EnvironmentKeys
 │   ├── BlueSkyTemplatesApp/       # composition root, RootView, SignedInView, SettingsTabView, App Intents
+│   ├── Camera/                    # AVFoundation capture, preview/review UI, crop/framing helpers
 │   ├── Compose/                   # ComposeView + ComposeText validator + attachments/link cards
 │   ├── DesignSystem/              # color/type/card/header/icon/hero primitives
 │   ├── Models/                    # SessionInfo, APIError, AuthFailureReason (Sendable, no framework deps)
@@ -109,6 +111,7 @@ Plan (docs/plans/) → Branch → For each task: implementer → spec review →
 │   ├── AuthTests/                 # state transitions, MockAuthProvider, Codable round-trip
 │   ├── BlueskyTests/              # handle normalization + link resolver helper tests
 │   ├── BlueSkyTemplatesAppTests/  # routing + App Intent helper tests
+│   ├── CameraTests/               # capture framing, crop helpers, permission resolver, zoom options
 │   ├── ComposeTests/              # ComposeText, ImageProcessor, attachments, sent log
 │   └── TemplatesTests/            # SwiftData CRUD + storage + exchange + HashtagParser
 ├── docs/
@@ -169,9 +172,8 @@ Pick from these for the next phase. Each is one coherent slice; group related it
 - **ComposeView nits** — `AnyShapeStyle` ternary symmetry on lines 75-76; `copy(_:)` missing `#else` for visionOS/watchOS.
 
 **Feature track (architecture-spec-aligned):**
-- **Templates → Composer hand-off** — deferred from Phase B. Add a "Use this template" button on `TemplateEditorView` (or a row affordance on `TemplateListView`) that switches the TabView to Compose and pre-fills the body + hashtags. Needs a small shared draft state (probably a new `ComposeDraft` `@Observable` in the App scope).
 - **Reply / quote support** — adds a reply context picker to ComposeView; APIClient.createPost gains a `replyTo` parameter. Architecture §6.2 has the pattern.
-- **External link card** — for posts that contain a URL, fetch and attach an `external` embed. Requires thumbnail prefetch (architecture §8.4 gotcha).
+- **Camera follow-ups** — front camera, flash, tap-to-focus, exposure compensation, hardware Camera Control integration, or Live Photo/ProRAW support. Gate each behind explicit AVFoundation support and physical-device testing.
 - **Nuke LazyImage** — wires `NukeUI` in for any thumbnail rendering that comes from a remote URL. Adoption-on-demand per architecture §9.1.
 
 **Strategic track:**
