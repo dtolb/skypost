@@ -29,7 +29,7 @@ settings:
     SWIFT_TREAT_WARNINGS_AS_ERRORS: NO
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     GENERATE_INFOPLIST_FILE: NO
-    MARKETING_VERSION: "2.1.1"
+    MARKETING_VERSION: "2.1.2"
     CURRENT_PROJECT_VERSION: "1"
     APS_ENVIRONMENT: development
     # iCloud/CloudKit entitlements require team-managed signing. Keep these
@@ -68,6 +68,15 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         NSCameraUsageDescription: "Take a photo to attach to your Bluesky post."
+        # US Export Administration Regulations exemption. The app uses only
+        # iOS-bundled crypto: HTTPS via URLSession/ATProtoKit and the Apple
+        # Keychain for session-token storage. No custom encryption. Setting
+        # this to false bypasses the per-version ASC encryption questionnaire
+        # so tagged releases CD straight to TestFlight without manual clicks.
+        # If the app ever adds non-Apple crypto (custom ciphers, third-party
+        # encryption libraries, DRM), flip to true and complete the ASC
+        # encryption documentation flow before the next release.
+        ITSAppUsesNonExemptEncryption: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.dtolb.BlueSkyTemplates
