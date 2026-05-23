@@ -13,6 +13,9 @@
 - [Phase D — Polish + Pow](docs/plans/2026-05-21-phase-d-polish.md)
 - [Phase E — Templates → Composer hand-off](docs/plans/2026-05-21-phase-e-templates-to-compose.md)
 - [Phase F — External link card embed](docs/plans/2026-05-21-phase-f-external-link-card.md)
+- [Phase G1 — Compose-first UX with in-place template picker](docs/plans/2026-05-21-phase-g1-compose-template-picker.md)
+- [Phase H — Mantis design-system restyle](docs/plans/2026-05-21-phase-h-mantis-restyle.md)
+- [Phase I — Cleanup sprint](docs/plans/2026-05-21-phase-i-cleanup.md)
 - [Phase J — iCloud template storage, exchange, and App Intents](docs/plans/2026-05-22-icloud-template-storage.md)
 - [Phase J1 — Square camera capture](docs/plans/2026-05-22-phase-j1-square-camera-capture.md)
 - [Phase J2 — Native camera controls](docs/plans/2026-05-22-phase-j2-camera-controls.md)
@@ -73,17 +76,12 @@ reviewer → code-quality reviewer → mark done.
 - `APIClient.postHelloWorld()` — provably unreferenced after Phase B3 deleted HelloTabView; safe to retire.
 - `ComposeView.swift` `copy(_:)` `#elseif os(macOS)` with no `#else` — silent no-op on watchOS/visionOS targets if they're ever added.
 
-## Phase C — Compose (images)
-
-### TODO
-- _none — C3 is the last Phase C task before the wrap-up review._
-
-### In Progress
-- **C3** — `APIClient.createPost(text:images:)` + ComposeView PhotosPicker / thumbnail / alt-text wiring
+## Phase C — Compose (images) ✅
 
 ### Done
 - ✅ **C1** — `ImageProcessor` ImageIO resize + JPEG encode (commit `e4ff475`; 46/46 tests). Cross-platform: tests run on macOS via `swift test`.
 - ✅ **C2** — `ComposeAttachment` + `isSubmittable(text:attachments:)` + 6 tests (commit `1fa71f7`; 52/52 tests passing)
+- ✅ **C3** — `APIClient.createPost(text:images:)` + ComposeView PhotosPicker / thumbnail / alt-text wiring (commit `58eb860`, merged via `c88c88f`; downstream Phase D Pow effects and Phase F external-link precedence depend on this surface)
 
 ### Carry-forward nits (extend Phase D list)
 - `ImageProcessor.swift:62` — `stride(from: 0.85, through: 0.30, by: -0.05)` can drift; an explicit qualities array would be bit-exact.
@@ -315,6 +313,9 @@ Closes the remaining manual gaps in TestFlight CD and addresses correctness bugs
 ## Phase G — sketch (post-Phase-F)
 
 - **OAuth migration** (deferred until architecture §7.3 trigger fires).
-- **Deferred-cleanup track**: plan #8 (App struct rename), plan #10 (@MainActor consistency), plan #12 (Keychain duplicate), plan #13 (app icon), plan #15 (DesignSystem semantic colors), ComposeView cosmetic nits (lines 75-76 ternary, `copy(_:)` missing `#else`), E2/E3/E4 cosmetic nits (this file's "Deferred-cosmetic nits (Phase E)"). Nuke LazyImage when a feed/CDN-URL surface arrives.
-- **Feature track candidates**: reply / quote support, external link card embed, Save draft as template (round-trip of Phase E).
+- **Deferred-cleanup track**:
+  - **Still open:** plan #12 (`Sources/AppLogging/Keychain.swift` throws on `errSecDuplicateItem` from `SecItemAdd`). The wrapper is not yet exercised by app code; address when DPoP / Share Extension actually consume it.
+  - **Closed in Phase I** (audit-trail only — kept here so the original sketch's intent is traceable): plan #8 (App struct rename → I.A1), plan #10 (@MainActor docs → I.A2), plan #13 (real app icon → I.A4), plan #15 (DesignSystem semantic colors → I.A3), ComposeView cosmetic nits (I.C1), Phase E2/E3/E4 cosmetic nits (I.C3 + I.C4).
+  - **Closed pre-cleanup:** LazyImage retired (no source references remain; no feed/CDN-URL surface ever arrived).
+- **Feature track candidates**: reply / quote support, Save draft as template (round-trip of Phase E). External link card embed shipped in Phase F.
 - **UI test harness**: backlog at [`docs/ui-test-backlog.md`](docs/ui-test-backlog.md); plan at [`docs/plans/2026-05-21-ui-test-harness.md`](docs/plans/2026-05-21-ui-test-harness.md). Deferred per Dan's "features for a while" directive; pick up when backlog crosses ~10 P0/P1 items or after 2-3 more feature phases. **Pre-pickup task:** refresh the harness plan for the post-G1 gesture surface — drop `tapUseFromContextMenu`, the "Use" swipe-button accessibilityIdentifier sweep, and the Use-Template toolbar references (plan §lines 115/119/170); add picker-Menu page-object helpers + Compose-default-tab fixture.
