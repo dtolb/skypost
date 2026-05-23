@@ -104,13 +104,11 @@ public final class CameraSession: NSObject {
     public func selectCaptureRatio(_ ratio: CameraCaptureRatio) {
         guard configuration.ratio != ratio else { return }
         configuration.ratio = ratio
-        applyDynamicAspectRatio(configuration)
     }
 
     public func selectCaptureOrientation(_ orientation: CameraCaptureOrientation) {
         guard configuration.orientation != orientation else { return }
         configuration.orientation = orientation
-        applyDynamicAspectRatio(configuration)
     }
 
     public func selectZoomOption(_ option: CameraZoomOption) {
@@ -203,7 +201,6 @@ public final class CameraSession: NSObject {
             session.addOutput(photoOutput)
         }
         photoOutput.maxPhotoQualityPrioritization = .quality
-        Self.applyDynamicAspectRatioSync(configuration, to: camera)
 
         let zoomOptions = Self.makeZoomOptions(for: camera)
         let selectedZoomOption = CameraZoomOption.defaultOption(in: zoomOptions)
@@ -236,13 +233,6 @@ public final class CameraSession: NSObject {
         rotationCoordinator = coordinator
 
         previewLayer.connection?.videoRotationAngle = coordinator.videoRotationAngleForHorizonLevelPreview
-    }
-
-    private func applyDynamicAspectRatio(_ configuration: CameraCaptureConfiguration) {
-        sessionQueue.async { [session] in
-            guard let device = (session.inputs.first as? AVCaptureDeviceInput)?.device else { return }
-            Self.applyDynamicAspectRatioSync(configuration, to: device)
-        }
     }
 
     private func applyZoomFactor(_ zoomFactor: CGFloat) {
@@ -322,26 +312,6 @@ public final class CameraSession: NSObject {
             }
         } catch {
             Log.media.error("camera zoom configuration failed: \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
-    private nonisolated static func applyDynamicAspectRatioSync(
-        _ configuration: CameraCaptureConfiguration,
-        to device: AVCaptureDevice
-    ) {
-        let aspectRatio = configuration.avCaptureAspectRatio
-        guard device.activeFormat.supportedDynamicAspectRatios.contains(aspectRatio) else { return }
-
-        do {
-            try device.lockForConfiguration()
-            defer { device.unlockForConfiguration() }
-            device.setDynamicAspectRatio(aspectRatio) { _, error in
-                if let error {
-                    Log.media.error("camera dynamic aspect ratio failed: \(error.localizedDescription, privacy: .public)")
-                }
-            }
-        } catch {
-            Log.media.error("camera aspect ratio configuration failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -445,22 +415,6 @@ private final class CameraPhotoCaptureProcessor: NSObject, AVCapturePhotoCapture
             pixelWidth: encoded.pixelWidth,
             pixelHeight: encoded.pixelHeight
         ))
-    }
-}
-
-private extension CameraCaptureConfiguration {
-    var avCaptureAspectRatio: AVCaptureDevice.AspectRatio {
-        switch ratio {
-        case .square:
-            return .ratio1x1
-        case .defaultPhoto:
-            switch orientation {
-            case .portrait:
-                return .ratio3x4
-            case .landscape:
-                return .ratio4x3
-            }
-        }
     }
 }
 

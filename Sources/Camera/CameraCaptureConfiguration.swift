@@ -30,7 +30,7 @@ public enum CameraCaptureOrientation: String, CaseIterable, Sendable, Equatable,
     public var systemImage: String {
         switch self {
         case .portrait:  return "rectangle.portrait"
-        case .landscape: return "rectangle.landscape"
+        case .landscape: return "rectangle"
         }
     }
 }
