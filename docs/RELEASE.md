@@ -32,42 +32,42 @@ Before a tag-driven upload job can be reliable:
   `-allowProvisioningUpdates`, `-authenticationKeyPath`,
   `-authenticationKeyID`, and `-authenticationKeyIssuerID`.
 
+## Versioning
+
+Release tags are the source of truth for the user-facing version:
+
+- Tag `v2.1.1` uploads `MARKETING_VERSION=2.1.1`.
+- `BUILD_NUMBER` can override the build number.
+- In GitLab CI, `CI_PIPELINE_IID` becomes `CURRENT_PROJECT_VERSION`.
+- Outside CI, the script falls back to a UTC timestamp build number.
+
+App Store Connect rejects duplicate build numbers for the same marketing
+version, so rerun a failed upload with `BUILD_NUMBER=<new number>` if the
+previous attempt already reached App Store Connect.
+
+## CI jobs
+
+- Branch and merge-request pipelines run `release-check`, which performs an
+  unsigned Release archive and skips export/upload. This exercises the same
+  version/build injection and generic iOS archive path without needing Apple
+  credentials.
+- Tags matching `vX.Y.Z` run `release-testflight`, which signs, archives, and
+  uploads to internal TestFlight with App Store Connect API credentials.
+- Release intermediates are written to a per-job temp directory by default.
+  Set `BUILD_DIR` only when intentionally keeping an archive for local
+  inspection.
+
 ## Archive shape
 
-The future release script should regenerate the Xcode project, archive for a
-generic iOS device, and export with the TestFlight export options:
+The release script regenerates the Xcode project, archives for a generic iOS
+device, and exports with the TestFlight export options:
 
 ```sh
-cd App
-xcodegen generate
-cd ..
-
-xcodebuild archive \
-  -project App/BlueSkyTemplates.xcodeproj \
-  -scheme BlueSkyTemplates \
-  -configuration Release \
-  -destination 'generic/platform=iOS' \
-  -archivePath "$ARCHIVE_PATH" \
-  MARKETING_VERSION="$VERSION" \
-  CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
-  APS_ENVIRONMENT=production \
-  DEVELOPMENT_TEAM=49LQ789275 \
-  CODE_SIGN_STYLE=Automatic \
-  -allowProvisioningUpdates \
-  -authenticationKeyPath "$ASC_KEY_PATH" \
-  -authenticationKeyID "$ASC_KEY_ID" \
-  -authenticationKeyIssuerID "$ASC_ISSUER_ID"
-
-xcodebuild -exportArchive \
-  -archivePath "$ARCHIVE_PATH" \
-  -exportPath "$EXPORT_DIR" \
-  -exportOptionsPlist scripts/ExportOptions-TestFlight.plist \
-  -allowProvisioningUpdates \
-  -authenticationKeyPath "$ASC_KEY_PATH" \
-  -authenticationKeyID "$ASC_KEY_ID" \
-  -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+scripts/release-testflight.sh 2.1.1
 ```
 
-Use the GitLab pipeline IID or a timestamp-derived integer for
-`CURRENT_PROJECT_VERSION`; App Store Connect rejects duplicate build numbers
-for the same marketing version.
+For local release-path validation without signing:
+
+```sh
+BUILD_NUMBER=1 scripts/release-testflight.sh --unsigned-archive --skip-export 0.0.0
+```

@@ -9,6 +9,7 @@
 stages:
   - build
   - test
+  - release
 
 variables:
   SCHEME: BlueSkyTemplates
@@ -23,6 +24,7 @@ workflow:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "v2"
+    - if: $CI_COMMIT_BRANCH
     - if: $CI_COMMIT_TAG
 
 build:
@@ -58,3 +60,44 @@ test:
     reports:
       junit: test-results/junit-*.xml
     expire_in: 1 week
+
+release-check:
+  stage: release
+  tags:
+    - xcode
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+  script:
+    - command -v xcodegen >/dev/null 2>&1 || brew install xcodegen
+    - chmod +x scripts/release-testflight.sh
+    # Branch pipelines exercise the Release archive path without signing or
+    # uploading. The real TestFlight job below gets its marketing version from
+    # the release tag.
+    - BUILD_NUMBER="${CI_PIPELINE_IID:-1}" scripts/release-testflight.sh --unsigned-archive --skip-export 0.0.0
+  artifacts:
+    when: always
+    paths:
+      - dist/release-info.txt
+    expire_in: 1 week
+
+release-testflight:
+  stage: release
+  tags:
+    - xcode
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/'
+  variables:
+    GIT_DEPTH: "0"
+  resource_group: testflight
+  script:
+    - command -v xcodegen >/dev/null 2>&1 || brew install xcodegen
+    - chmod +x scripts/release-testflight.sh
+    - scripts/release-testflight.sh "${CI_COMMIT_TAG#v}"
+  artifacts:
+    when: always
+    paths:
+      - dist/release-info.txt
+    expire_in: 30 days

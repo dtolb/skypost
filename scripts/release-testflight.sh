@@ -1,0 +1,355 @@
+#!/usr/bin/env bash
+#
+# release-testflight.sh - archive and upload BlueSky Templates to TestFlight.
+#
+# Usage:
+#   scripts/release-testflight.sh <version>
+#   scripts/release-testflight.sh --unsigned-archive --skip-export 0.0.0
+#
+# Versioning:
+#   <version> becomes MARKETING_VERSION / CFBundleShortVersionString.
+#   BUILD_NUMBER, CI_PIPELINE_IID, or a UTC timestamp becomes
+#   CURRENT_PROJECT_VERSION / CFBundleVersion.
+
+set -euo pipefail
+
+readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+readonly APP_DIR="${REPO_ROOT}/App"
+readonly PROJECT="${APP_DIR}/BlueSkyTemplates.xcodeproj"
+readonly SCHEME="BlueSkyTemplates"
+readonly CONFIGURATION="Release"
+readonly EXPECTED_BUNDLE_ID="com.dtolb.BlueSkyTemplates"
+readonly EXPORT_OPTIONS="${REPO_ROOT}/scripts/ExportOptions-TestFlight.plist"
+readonly DIST_DIR="${REPO_ROOT}/dist"
+readonly DEFAULT_DEVELOPMENT_TEAM="49LQ789275"
+readonly MIN_XCODE_MAJOR=26
+
+VERSION=""
+BUILD_NUMBER_VALUE=""
+BUILD_DIR=""
+ARCHIVE_PATH=""
+EXPORT_DIR=""
+INFO_PATH=""
+RESOLVED_DEVELOPMENT_TEAM=""
+DRY_RUN=0
+SKIP_EXPORT=0
+UNSIGNED_ARCHIVE=0
+
+log() {
+    local step="$1"
+    shift
+    printf '[%s] %s\n' "$step" "$*"
+}
+
+die() {
+    printf 'release-testflight.sh: error: %s\n' "$*" >&2
+    exit 1
+}
+
+usage() {
+    cat <<'EOF'
+Usage: scripts/release-testflight.sh [options] <version>
+
+Archives BlueSky Templates for iOS and uploads the build to internal
+TestFlight unless --skip-export is supplied.
+
+Arguments:
+  <version>               Marketing version, e.g. 2.1.1. In CI this should
+                          come from a release tag like v2.1.1.
+
+Options:
+  --dry-run               Validate inputs and print derived paths only.
+  --skip-export           Archive only; do not export/upload to TestFlight.
+  --unsigned-archive      Disable code signing. Requires --skip-export and is
+                          intended for branch CI release smoke checks.
+  -h, --help              Show this help.
+
+Environment:
+  BUILD_NUMBER            Optional numeric build number override.
+  CI_PIPELINE_IID         Used as build number when BUILD_NUMBER is unset.
+  DEVELOPMENT_TEAM        Apple Developer Team ID. Defaults to 49LQ789275.
+  ASC_KEY_PATH            GitLab file variable path for the App Store Connect
+                          .p8 key. Required for upload.
+  ASC_KEY_ID              App Store Connect API key ID. Required for upload.
+  ASC_ISSUER_ID           App Store Connect API issuer ID. Required for upload.
+  BUILD_DIR               Optional intermediates directory.
+EOF
+}
+
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            --dry-run)
+                DRY_RUN=1
+                shift
+                ;;
+            --skip-export)
+                SKIP_EXPORT=1
+                shift
+                ;;
+            --unsigned-archive)
+                UNSIGNED_ARCHIVE=1
+                shift
+                ;;
+            -*)
+                die "unknown option: $1"
+                ;;
+            *)
+                if [[ -n "$VERSION" ]]; then
+                    die "unexpected extra argument: $1"
+                fi
+                VERSION="$1"
+                shift
+                ;;
+        esac
+    done
+
+    [[ -n "$VERSION" ]] || die "<version> is required"
+    [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+        || die "version '${VERSION}' must look like 2.1.1"
+
+    if [[ "$UNSIGNED_ARCHIVE" -eq 1 && "$SKIP_EXPORT" -ne 1 ]]; then
+        die "--unsigned-archive requires --skip-export"
+    fi
+
+    if [[ -n "${CI_COMMIT_TAG:-}" && "${CI_COMMIT_TAG}" != "v${VERSION}" ]]; then
+        die "CI_COMMIT_TAG (${CI_COMMIT_TAG}) does not match version v${VERSION}"
+    fi
+}
+
+derive_build_number() {
+    if [[ -n "${BUILD_NUMBER:-}" ]]; then
+        BUILD_NUMBER_VALUE="$BUILD_NUMBER"
+    elif [[ -n "${CI_PIPELINE_IID:-}" ]]; then
+        BUILD_NUMBER_VALUE="$CI_PIPELINE_IID"
+    else
+        BUILD_NUMBER_VALUE="$(date -u '+%Y%m%d%H%M')"
+    fi
+
+    [[ "$BUILD_NUMBER_VALUE" =~ ^[0-9]+$ ]] \
+        || die "build number '${BUILD_NUMBER_VALUE}' must be numeric"
+}
+
+require_tool() {
+    command -v "$1" >/dev/null 2>&1 || die "$1 not found"
+}
+
+require_env() {
+    local name="$1"
+    local desc="$2"
+    if [[ -z "${!name:-}" ]]; then
+        die "missing required env var ${name} (${desc})"
+    fi
+}
+
+preflight() {
+    log preflight "checking tools and inputs"
+
+    require_tool xcodebuild
+    require_tool xcrun
+    require_tool xcodegen
+    require_tool plutil
+
+    local xcode_version_line major
+    xcode_version_line="$(xcodebuild -version)"
+    xcode_version_line="${xcode_version_line%%$'\n'*}"
+    major="$(printf '%s\n' "$xcode_version_line" | sed -nE 's/^Xcode ([0-9]+).*/\1/p')"
+    [[ -n "$major" ]] || die "could not parse Xcode version from '${xcode_version_line}'"
+    if (( major < MIN_XCODE_MAJOR )); then
+        die "${xcode_version_line} is too old; need Xcode ${MIN_XCODE_MAJOR}+"
+    fi
+
+    plutil -lint "$EXPORT_OPTIONS" >/dev/null
+
+    if [[ "$UNSIGNED_ARCHIVE" -ne 1 && "$DRY_RUN" -ne 1 ]]; then
+        require_env ASC_KEY_PATH "GitLab file variable containing App Store Connect .p8 key"
+        require_env ASC_KEY_ID "App Store Connect API key ID"
+        require_env ASC_ISSUER_ID "App Store Connect API issuer ID"
+        [[ -f "$ASC_KEY_PATH" ]] || die "ASC_KEY_PATH does not point to a file"
+    fi
+
+    local default_tmp="${TMPDIR:-/tmp}"
+    default_tmp="${default_tmp%/}"
+    BUILD_DIR="${BUILD_DIR:-${default_tmp}/blueskytemplates-testflight-${CI_JOB_ID:-$$}}"
+    ARCHIVE_PATH="${BUILD_DIR}/${SCHEME}-${VERSION}-${BUILD_NUMBER_VALUE}.xcarchive"
+    EXPORT_DIR="${BUILD_DIR}/${SCHEME}-${VERSION}-${BUILD_NUMBER_VALUE}-export"
+    INFO_PATH="${DIST_DIR}/release-info.txt"
+    RESOLVED_DEVELOPMENT_TEAM="${DEVELOPMENT_TEAM:-$DEFAULT_DEVELOPMENT_TEAM}"
+
+    log preflight "Xcode ${xcode_version_line#Xcode } OK"
+    log preflight "version      ${VERSION}"
+    log preflight "build number ${BUILD_NUMBER_VALUE}"
+    log preflight "team         ${RESOLVED_DEVELOPMENT_TEAM}"
+    log preflight "archive      ${ARCHIVE_PATH}"
+    if [[ "$SKIP_EXPORT" -eq 1 ]]; then
+        log preflight "export       skipped"
+    else
+        log preflight "export       TestFlight upload"
+    fi
+}
+
+run() {
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        printf '+'
+        printf ' %q' "$@"
+        printf '\n'
+    else
+        "$@"
+    fi
+}
+
+prepare() {
+    log prepare "creating release directories"
+    run rm -rf "$ARCHIVE_PATH" "$EXPORT_DIR"
+    run mkdir -p "$BUILD_DIR" "$DIST_DIR"
+}
+
+generate_project() {
+    log project "generating Xcode project"
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        log project "would run xcodegen generate in ${APP_DIR}"
+    else
+        (cd "$APP_DIR" && xcodegen generate)
+    fi
+}
+
+resolve_packages() {
+    log resolve "resolving package dependencies"
+    run xcodebuild \
+        -project "$PROJECT" \
+        -scheme "$SCHEME" \
+        -resolvePackageDependencies
+}
+
+archive() {
+    log archive "archiving ${SCHEME} ${VERSION} (${BUILD_NUMBER_VALUE})"
+
+    local args=(
+        archive
+        -project "$PROJECT"
+        -scheme "$SCHEME"
+        -configuration "$CONFIGURATION"
+        -destination "generic/platform=iOS"
+        -archivePath "$ARCHIVE_PATH"
+        "MARKETING_VERSION=${VERSION}"
+        "CURRENT_PROJECT_VERSION=${BUILD_NUMBER_VALUE}"
+        "APS_ENVIRONMENT=production"
+        "DEVELOPMENT_TEAM=${RESOLVED_DEVELOPMENT_TEAM}"
+        "CODE_SIGN_STYLE=Automatic"
+    )
+
+    if [[ "$UNSIGNED_ARCHIVE" -eq 1 ]]; then
+        args+=("CODE_SIGNING_ALLOWED=NO" "CODE_SIGNING_REQUIRED=NO" "CODE_SIGN_IDENTITY=")
+    else
+        local asc_key_path="${ASC_KEY_PATH:-<ASC_KEY_PATH>}"
+        local asc_key_id="${ASC_KEY_ID:-<ASC_KEY_ID>}"
+        local asc_issuer_id="${ASC_ISSUER_ID:-<ASC_ISSUER_ID>}"
+        args+=(
+            "CODE_SIGN_IDENTITY=Apple Distribution"
+            -allowProvisioningUpdates
+            -authenticationKeyPath "$asc_key_path"
+            -authenticationKeyID "$asc_key_id"
+            -authenticationKeyIssuerID "$asc_issuer_id"
+        )
+    fi
+
+    run xcodebuild "${args[@]}"
+}
+
+plist_value() {
+    local plist="$1"
+    local key="$2"
+    /usr/libexec/PlistBuddy -c "Print :${key}" "$plist"
+}
+
+validate_archive() {
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        log validate "would inspect archived app Info.plist"
+        return
+    fi
+
+    local app_info="${ARCHIVE_PATH}/Products/Applications/${SCHEME}.app/Info.plist"
+    [[ -f "$app_info" ]] || die "archived app Info.plist not found at ${app_info}"
+
+    local actual_bundle_id actual_version actual_build
+    actual_bundle_id="$(plist_value "$app_info" CFBundleIdentifier)"
+    actual_version="$(plist_value "$app_info" CFBundleShortVersionString)"
+    actual_build="$(plist_value "$app_info" CFBundleVersion)"
+
+    [[ "$actual_bundle_id" == "$EXPECTED_BUNDLE_ID" ]] \
+        || die "bundle ID mismatch: expected ${EXPECTED_BUNDLE_ID}, got ${actual_bundle_id}"
+    [[ "$actual_version" == "$VERSION" ]] \
+        || die "version mismatch: expected ${VERSION}, got ${actual_version}"
+    [[ "$actual_build" == "$BUILD_NUMBER_VALUE" ]] \
+        || die "build number mismatch: expected ${BUILD_NUMBER_VALUE}, got ${actual_build}"
+
+    log validate "archive metadata OK (${actual_bundle_id} ${actual_version} build ${actual_build})"
+}
+
+export_upload() {
+    if [[ "$SKIP_EXPORT" -eq 1 ]]; then
+        log export "skipping TestFlight upload"
+        return
+    fi
+
+    log export "uploading archive to TestFlight"
+    run mkdir -p "$EXPORT_DIR"
+    local export_options="${BUILD_DIR}/ExportOptions-TestFlight.plist"
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        log export "would write export options with team ${RESOLVED_DEVELOPMENT_TEAM}"
+    else
+        cp "$EXPORT_OPTIONS" "$export_options"
+        /usr/libexec/PlistBuddy -c "Set :teamID ${RESOLVED_DEVELOPMENT_TEAM}" "$export_options"
+    fi
+    local asc_key_path="${ASC_KEY_PATH:-<ASC_KEY_PATH>}"
+    local asc_key_id="${ASC_KEY_ID:-<ASC_KEY_ID>}"
+    local asc_issuer_id="${ASC_ISSUER_ID:-<ASC_ISSUER_ID>}"
+    run xcodebuild \
+        -exportArchive \
+        -archivePath "$ARCHIVE_PATH" \
+        -exportPath "$EXPORT_DIR" \
+        -exportOptionsPlist "$export_options" \
+        -allowProvisioningUpdates \
+        -authenticationKeyPath "$asc_key_path" \
+        -authenticationKeyID "$asc_key_id" \
+        -authenticationKeyIssuerID "$asc_issuer_id"
+}
+
+write_release_info() {
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        log info "would write ${INFO_PATH}"
+        return
+    fi
+
+    cat > "$INFO_PATH" <<EOF
+scheme=${SCHEME}
+bundle_id=${EXPECTED_BUNDLE_ID}
+version=${VERSION}
+build_number=${BUILD_NUMBER_VALUE}
+archive_path=${ARCHIVE_PATH}
+export_path=${EXPORT_DIR}
+testflight_upload=$([[ "$SKIP_EXPORT" -eq 1 ]] && printf 'skipped' || printf 'submitted')
+commit=${CI_COMMIT_SHA:-unknown}
+tag=${CI_COMMIT_TAG:-none}
+EOF
+    log info "wrote ${INFO_PATH}"
+}
+
+main() {
+    parse_args "$@"
+    derive_build_number
+    preflight
+    prepare
+    generate_project
+    resolve_packages
+    archive
+    validate_archive
+    export_upload
+    write_release_info
+}
+
+main "$@"
