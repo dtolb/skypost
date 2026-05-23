@@ -169,7 +169,13 @@ public struct CameraCaptureView: View {
 
     private var shutterBar: some View {
         VStack(spacing: 12) {
-            if case .failed(let msg) = session.state {
+            if let interruption = session.interruptionMessage {
+                Label(interruption, systemImage: "pause.circle.fill")
+                    .foregroundStyle(.white)
+                    .font(.callout)
+                    .padding(.horizontal, 16)
+                    .accessibilityLabel(interruption)
+            } else if case .failed(let msg) = session.state {
                 Label(msg, systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(BrandColor.error)
                     .font(.callout)
@@ -196,8 +202,8 @@ public struct CameraCaptureView: View {
     }
 
     private var isShutterEnabled: Bool {
-        if case .live = session.state { return true }
-        return false
+        guard case .live = session.state else { return false }
+        return !session.isInterrupted
     }
 
     // MARK: - Review
