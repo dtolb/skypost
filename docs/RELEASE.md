@@ -18,6 +18,14 @@ macOS Developer ID / notarization / DMG flow from `dans-extra-snap`.
   and internal TestFlight only.
 - `.gitignore` excludes local IPA/archive outputs and App Store Connect
   signing material.
+- `ITSAppUsesNonExemptEncryption=false` is declared in `Info.plist` (via
+  `App/project.yml` `info.properties`), which suppresses the per-version
+  encryption-compliance questionnaire in App Store Connect so tagged
+  releases reach TestFlight with no manual ASC clicks. The app uses only
+  iOS-bundled crypto: HTTPS via URLSession/ATProtoKit and Apple Keychain
+  for session tokens. If non-Apple crypto is ever added (custom ciphers,
+  third-party encryption libraries, DRM), flip this to `true` and complete
+  the App Store Connect encryption documentation flow before the next tag.
 
 ## One-time Apple setup
 
@@ -94,6 +102,19 @@ previous attempt already reached App Store Connect.
   Set `BUILD_DIR` only when intentionally keeping an archive for local
   inspection.
 
+## Distribution to TestFlight
+
+After `release-testflight` uploads, App Store Connect processes the build
+(typically 5–30 minutes). The app's internal TestFlight beta group
+`TolbNet` (id `0dd21dac-17e7-4992-9108-f0052e71879e`) is configured with
+`hasAccessToAllBuilds=true`, so every processed build is automatically
+made available to all internal testers with no per-build action in App
+Store Connect.
+
+Internal groups do not require Beta App Review. The end-to-end path is:
+`git tag vX.Y.Z` → `git push origin vX.Y.Z` → CI archive/upload → ASC
+processing → tester install.
+
 ## Signing failures
 
 If the tag job archives successfully and then fails during export with
@@ -132,3 +153,54 @@ For local release-path validation without signing:
 ```sh
 BUILD_NUMBER=1 scripts/release-testflight.sh --unsigned-archive --skip-export 0.0.0
 ```
+
+## Signing reference (runner-local)
+
+Diagnostic specifics for the current TestFlight signing material on the
+self-hosted Mac runner.
+
+**CI keychain:** `/Users/dtolb/Library/Keychains/ci.keychain-db`
+
+**Apple Distribution identity** (in `ci.keychain-db`):
+
+- Common name: `Apple Distribution: Daniel Tolbert (49LQ789275)`
+- SHA-1: `F5:D1:62:41:F7:4C:38:39:DB:9C:53:5B:CA:DA:BA:ED:70:70:EE:E7`
+- Valid through 2027-05-23
+
+**Provisioning profile:** `/Users/dtolb/.ci-signing/BlueSkyTemplates/BlueSkyTemplates_TestFlight_App_Store.mobileprovision`
+
+- Name: `BlueSkyTemplates TestFlight App Store`
+- UUID: `e5792afc-1a1d-4da3-9749-afbf59a9f018`
+- App ID: `49LQ789275.com.dtolb.BlueSkyTemplates`
+- Bound certificate SHA-1 matches the identity above
+- Permissions: `chmod 700` on parent dir, `chmod 600` on the `.mobileprovision`
+
+GitLab CI variable `APP_STORE_PROFILE_PATH` (group `tolbnet`, id 52) is
+set to the profile path above. The downloaded profile is 13,783 bytes
+(18,380 chars base64) which exceeds GitLab's 10,000-char variable limit,
+so `APP_STORE_PROFILE_BASE64` is not used for this profile.
+
+Verification commands:
+
+```sh
+security find-identity -v -p codesigning /Users/dtolb/Library/Keychains/ci.keychain-db
+
+PROFILE=/Users/dtolb/.ci-signing/BlueSkyTemplates/BlueSkyTemplates_TestFlight_App_Store.mobileprovision
+security cms -D -i "$PROFILE" > /tmp/bluesky-profile.plist
+/usr/libexec/PlistBuddy -c 'Print :Name' /tmp/bluesky-profile.plist
+/usr/libexec/PlistBuddy -c 'Print :UUID' /tmp/bluesky-profile.plist
+/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' /tmp/bluesky-profile.plist
+```
+
+If Xcode selects a stale profile by name during archive, remove or move
+aside stale profiles from these directories surgically (by UUID/name —
+do not broad-delete):
+
+- `~/Library/Developer/Xcode/UserData/Provisioning Profiles/`
+- `~/Library/MobileDevice/Provisioning Profiles/`
+
+If a tag pipeline fails before signing, see `Signing failures` above. If
+upload reached App Store Connect but failed after a build was created, do
+not reuse the same build number for the same marketing version — either
+let `CI_PIPELINE_IID` advance on a new pipeline run, or set
+`BUILD_NUMBER` to a higher value.

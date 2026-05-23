@@ -1,6 +1,6 @@
 # Kanban — BlueSkyTemplates v2 implementation
 
-> **Handoff state — 2026-05-22:** `main` and `origin/main` are synchronized after the camera-control fix and markdown cleanup. The active app includes CloudKit-backed templates, versioned template import/export, App Intents, dark-mode-safe surfaces, and custom camera capture with ratio/orientation/zoom controls. Local validation after the latest camera merge passed `swift test` with 139 Swift Testing cases, iPhone 17 simulator build/run, runtime log scan, and fresh-context review. Physical-device camera verification remains tracked in `docs/ui-test-backlog.md`.
+> **Handoff state — 2026-05-23:** `main` and `origin/main` are synchronized at `v2.1.2` after camera-session lifecycle hardening, encryption-exemption declaration, and asc-mcp wiring. TestFlight CD is fully tag-driven (`git tag vX.Y.Z` → push → TolbNet internal group auto-distribution, zero ASC clicks). 139 Swift Testing cases still pass; iPhone 17 simulator build clean. Physical-device camera verification remains tracked in `docs/ui-test-backlog.md`.
 
 **Current branch:** `main` (local HEAD == `origin/main`)
 **Remote status:** `origin/main` is current with local `main`; secondary `github/main` is not the CI source of truth.
@@ -288,6 +288,29 @@ Extends J1 from fixed square capture to native-style controls: virtual-camera zo
 - ✅ **J2.F** — `CameraCaptureView` ratio/orientation/zoom controls + review flow
 - ✅ **J2.G** — Compose presents `CameraCaptureView`; attachment ingestion remains unchanged
 - ✅ **J2.H** — Full local verification and fresh-context subagent review
+
+## Phase K — Camera hardening + zero-click TestFlight CD ✅
+
+**Shipped:** v2.1.1 (build 63) and v2.1.2 (build 65) via tag-driven `release-testflight` pipeline.
+
+Closes the remaining manual gaps in TestFlight CD and addresses correctness bugs in the AVCaptureSession lifecycle surfaced by the `camera-auditor` agent.
+
+### Done
+
+- ✅ **K.A** — `camera-auditor` scan against `Sources/Camera/` for the Bluesky post flow (4 High findings, 0 Critical)
+- ✅ **K.B** — `CameraSession.startRunning` race closed: `state = .live` now flips only after `startRunning()` returns on the session queue, gated on `session.isRunning` (was: shutter could arm against a still-starting session and silently drop the capture)
+- ✅ **K.C** — Session interruption surfaced to the UI via new `interruptionMessage`/`isInterrupted` properties; viewfinder stays mounted during phone calls / Split View / system pressure, shutter disables, inline banner appears (was: log-only handlers, frozen viewfinder with active shutter)
+- ✅ **K.D** — `AVCaptureSession.runtimeErrorNotification` observed; `.mediaServicesWereReset` triggers a session-queue restart, other runtime errors flip to `.failed` (was: silently dead viewfinder)
+- ✅ **K.E** — Defensive log in `attachRotationCoordinator` (race closed by K.B, but a missing coordinator would fall back to 0° and upload sideways JPEGs to Bluesky)
+- ✅ **K.F** — `ITSAppUsesNonExemptEncryption=false` declared in `Info.plist` via `App/project.yml` (HTTPS + Apple Keychain only — US EAR exemption), eliminates the per-version ASC encryption questionnaire
+- ✅ **K.G** — `asc-mcp` (TestFlight worker preset, ~34 tools) registered at user scope with the existing ASC API key + .p8 staged to `~/.appstoreconnect/private_keys/`; verified TolbNet internal group already has `hasAccessToAllBuilds=true` so every processed build auto-distributes
+- ✅ **K.H** — Repo hygiene: 3 stale merged branches deleted from `origin` (feature/testflight-release-gaps, testing, v2); `github` mirror force-synced (was 167 commits behind); MEMORY.md updated with 4 new feedback/reference memories
+- ✅ **K.I** — `docs/RELEASE.md` absorbed the operational specifics (cert SHA-1, profile UUID, verification commands) from the now-deleted `TESTFLIGHT_CD.md`; added "Distribution to TestFlight" + "Signing reference (runner-local)" sections
+
+### Lesson captured (see MEMORY.md)
+
+- `feedback_axiom_audit_ui_blindspot.md` — camera-auditor recommended flipping state to `.failed` during interruption; would have routed the user to a close-only `failureCard` (worse UX). Always trace what each state case renders in the SwiftUI content switch before applying model-layer audit findings.
+- `feedback_swift_build_misses_ios_gated.md` — `swift build` on macOS skips `#if os(iOS)` files; iOS-only API typos (`AVCaptureSession.errorKey` vs the canonical `AVCaptureSessionErrorKey`) only died in CI. Run `xcodebuild -destination "platform=iOS Simulator,name=iPhone 17"` locally before pushing edits to such files.
 
 ## Phase G — sketch (post-Phase-F)
 
