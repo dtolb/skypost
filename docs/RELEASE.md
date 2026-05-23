@@ -48,9 +48,12 @@ Before a tag-driven upload job can be reliable:
   downloaded App Store Connect provisioning profile for
   `com.dtolb.BlueSkyTemplates`, encoded as one line with
   `base64 -i Profile.mobileprovision | tr -d '\n'`. `APP_STORE_PROFILE_PATH`
-  is also supported when GitLab provides the profile as a file variable. The
-  profile must include the same Apple Distribution certificate that exists as a
-  private-key identity in `KEYCHAIN_PATH`.
+  is also supported when GitLab provides the profile as a file variable or when
+  the profile is stored on the self-hosted Mac runner. GitLab variable values
+  are limited to 10,000 characters, so larger profiles should use
+  `APP_STORE_PROFILE_PATH` with a runner-local path. The profile must include
+  the same Apple Distribution certificate that exists as a private-key identity
+  in `KEYCHAIN_PATH`.
 
 ## Versioning
 
@@ -111,8 +114,9 @@ To refresh the profile, open Apple Developer account > Certificates,
 Identifiers & Profiles > Profiles, create an App Store Connect profile for the
 `com.dtolb.BlueSkyTemplates` App ID, select the Apple Distribution certificate
 that is installed in the CI keychain, generate, download, and store the
-downloaded `.mobileprovision` as `APP_STORE_PROFILE_BASE64` or
-`APP_STORE_PROFILE_PATH`.
+downloaded `.mobileprovision` on the runner. Then set `APP_STORE_PROFILE_PATH`
+to that local file path. `APP_STORE_PROFILE_BASE64` is available only when the
+encoded profile fits within GitLab's variable limit.
 
 ## Archive shape
 

@@ -76,9 +76,10 @@ Environment:
   ASC_ISSUER_ID           App Store Connect API issuer ID. Required for upload.
   KEYCHAIN_PATH           Optional signing keychain to unlock before upload.
   KEYCHAIN_PASSWORD       Password for KEYCHAIN_PATH.
-  APP_STORE_PROFILE_PATH  Optional GitLab file variable path for an App Store
-                          provisioning profile. When set, export uses manual
-                          signing with this profile instead of cloud signing.
+  APP_STORE_PROFILE_PATH  Optional runner-local path or GitLab file variable
+                          path for an App Store provisioning profile. When set,
+                          export uses manual signing with this profile instead
+                          of cloud signing.
   APP_STORE_PROFILE_BASE64
                           Optional base64-encoded App Store provisioning
                           profile. Used when APP_STORE_PROFILE_PATH is unset.
