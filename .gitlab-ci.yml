@@ -95,10 +95,18 @@ release-testflight:
   before_script:
     # Same unattended signing keychain setup used by the macOS release job.
     # The keychain must contain an Apple Distribution identity for local iOS
-    # distribution signing; otherwise Xcode falls back to App Store Connect
-    # cloud signing during archive/export.
-    - security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-    - 'security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" || true'
+    # distribution signing. Set APP_STORE_PROFILE_BASE64 or
+    # APP_STORE_PROFILE_PATH to a matching App Store profile when the App Store
+    # Connect API key cannot cloud-manage signing.
+    - |
+      if [[ -n "${KEYCHAIN_PATH:-}" || -n "${KEYCHAIN_PASSWORD:-}" ]]; then
+        test -n "${KEYCHAIN_PATH:-}" || { echo "KEYCHAIN_PATH is required when KEYCHAIN_PASSWORD is set"; exit 1; }
+        test -n "${KEYCHAIN_PASSWORD:-}" || { echo "KEYCHAIN_PASSWORD is required when KEYCHAIN_PATH is set"; exit 1; }
+        security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+        security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" || true
+      else
+        echo "No signing keychain configured; release script will use login keychain or cloud signing."
+      fi
   script:
     - command -v xcodegen >/dev/null 2>&1 || brew install xcodegen
     - chmod +x scripts/release-testflight.sh

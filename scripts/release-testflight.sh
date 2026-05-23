@@ -26,11 +26,13 @@ readonly MIN_XCODE_MAJOR=26
 
 VERSION=""
 BUILD_NUMBER_VALUE=""
-BUILD_DIR=""
+BUILD_DIR="${BUILD_DIR:-}"
 ARCHIVE_PATH=""
 EXPORT_DIR=""
 INFO_PATH=""
 RESOLVED_DEVELOPMENT_TEAM=""
+APP_STORE_PROFILE_RESOLVED_PATH=""
+DISTRIBUTION_IDENTITY_SHA1=""
 DRY_RUN=0
 SKIP_EXPORT=0
 UNSIGNED_ARCHIVE=0
@@ -74,6 +76,12 @@ Environment:
   ASC_ISSUER_ID           App Store Connect API issuer ID. Required for upload.
   KEYCHAIN_PATH           Optional signing keychain to unlock before upload.
   KEYCHAIN_PASSWORD       Password for KEYCHAIN_PATH.
+  APP_STORE_PROFILE_PATH  Optional GitLab file variable path for an App Store
+                          provisioning profile. When set, export uses manual
+                          signing with this profile instead of cloud signing.
+  APP_STORE_PROFILE_BASE64
+                          Optional base64-encoded App Store provisioning
+                          profile. Used when APP_STORE_PROFILE_PATH is unset.
   BUILD_DIR               Optional intermediates directory.
 EOF
 }
@@ -148,13 +156,45 @@ require_env() {
     fi
 }
 
-has_local_distribution_identity() {
+keychain_identity_source() {
     if [[ -n "${KEYCHAIN_PATH:-}" ]]; then
-        security find-identity -v -p codesigning "$KEYCHAIN_PATH" 2>/dev/null \
-            | grep -Eq '"(Apple|iOS) Distribution:'
+        security find-identity -v -p codesigning "$KEYCHAIN_PATH" 2>/dev/null
     else
-        security find-identity -v -p codesigning 2>/dev/null \
-            | grep -Eq '"(Apple|iOS) Distribution:'
+        security find-identity -v -p codesigning 2>/dev/null
+    fi
+}
+
+distribution_identity_sha1s() {
+    keychain_identity_source \
+        | sed -nE 's/^[[:space:]]*[0-9]+\) ([A-F0-9]+) "(Apple|iOS) Distribution:.*/\1/p'
+}
+
+distribution_identity_sha1() {
+    distribution_identity_sha1s | head -n 1
+}
+
+has_local_distribution_identity() {
+    [[ -n "$(distribution_identity_sha1)" ]]
+}
+
+has_app_store_profile_source() {
+    [[ -n "${APP_STORE_PROFILE_PATH:-}" || -n "${APP_STORE_PROFILE_BASE64:-}" ]]
+}
+
+resolve_app_store_profile() {
+    [[ -n "$APP_STORE_PROFILE_RESOLVED_PATH" ]] && return
+
+    if [[ -n "${APP_STORE_PROFILE_PATH:-}" ]]; then
+        [[ -f "$APP_STORE_PROFILE_PATH" ]] || die "APP_STORE_PROFILE_PATH does not point to a file"
+        APP_STORE_PROFILE_RESOLVED_PATH="$APP_STORE_PROFILE_PATH"
+        return
+    fi
+
+    if [[ -n "${APP_STORE_PROFILE_BASE64:-}" ]]; then
+        run mkdir -p "$BUILD_DIR"
+        APP_STORE_PROFILE_RESOLVED_PATH="${BUILD_DIR}/AppStore.mobileprovision"
+        printf '%s' "$APP_STORE_PROFILE_BASE64" | base64 -D > "$APP_STORE_PROFILE_RESOLVED_PATH" \
+            || die "APP_STORE_PROFILE_BASE64 could not be decoded"
     fi
 }
 
@@ -222,7 +262,13 @@ preflight() {
     else
         unlock_signing_keychain
         log preflight "export       TestFlight upload"
-        if has_local_distribution_identity; then
+        if has_app_store_profile_source; then
+            if ! has_local_distribution_identity; then
+                die "APP_STORE_PROFILE_PATH/APP_STORE_PROFILE_BASE64 requires a local Apple Distribution identity"
+            fi
+            log signing "local Apple Distribution identity found"
+            install_app_store_profile
+        elif has_local_distribution_identity; then
             log signing "local Apple Distribution identity found"
         else
             log signing "no local Apple Distribution identity; Xcode must cloud-sign using App Store Connect access"
@@ -303,6 +349,98 @@ plist_value() {
     /usr/libexec/PlistBuddy -c "Print :${key}" "$plist"
 }
 
+profile_plist_path() {
+    local profile_path="$1"
+    local plist_path="${BUILD_DIR}/$(basename "$profile_path").plist"
+    security cms -D -i "$profile_path" > "$plist_path" 2>/dev/null \
+        || die "could not decode provisioning profile at ${profile_path}"
+    printf '%s\n' "$plist_path"
+}
+
+profile_cert_sha1s() {
+    local plist_path="$1"
+    local index=0
+
+    while :; do
+        local cert_xml="${BUILD_DIR}/profile-cert-${index}.xml"
+        local cert_der="${BUILD_DIR}/profile-cert-${index}.der"
+        if ! plutil -extract "DeveloperCertificates.${index}" xml1 -o "$cert_xml" "$plist_path" 2>/dev/null; then
+            break
+        fi
+
+        awk '/<data>/{flag=1; next} /<\/data>/{flag=0} flag {gsub(/[[:space:]]/, ""); printf "%s", $0}' "$cert_xml" \
+            | base64 -D > "$cert_der"
+        openssl x509 -inform der -in "$cert_der" -noout -fingerprint -sha1 2>/dev/null \
+            | sed -nE 's/^sha1 Fingerprint=//p' \
+            | tr -d ':'
+
+        index=$((index + 1))
+    done
+}
+
+matching_profile_distribution_identity() {
+    local plist_path="$1"
+    local profile_cert_sha1s_value
+    profile_cert_sha1s_value="$(profile_cert_sha1s "$plist_path")"
+
+    while IFS= read -r identity_sha1; do
+        [[ -n "$identity_sha1" ]] || continue
+        if printf '%s\n' "$profile_cert_sha1s_value" | grep -Fxq "$identity_sha1"; then
+            printf '%s\n' "$identity_sha1"
+            return
+        fi
+    done < <(distribution_identity_sha1s)
+
+    return 1
+}
+
+profile_has_key() {
+    local plist_path="$1"
+    local key="$2"
+    /usr/libexec/PlistBuddy -c "Print :${key}" "$plist_path" >/dev/null 2>&1
+}
+
+install_app_store_profile() {
+    if ! has_app_store_profile_source; then
+        return
+    fi
+
+    [[ "$DRY_RUN" -eq 1 ]] && return
+    run mkdir -p "$BUILD_DIR"
+    resolve_app_store_profile
+
+    local profile_plist profile_name profile_uuid app_identifier get_task_allow provisions_all_devices expected_app_identifier
+    [[ -n "$(distribution_identity_sha1)" ]] || die "APP_STORE_PROFILE_PATH/APP_STORE_PROFILE_BASE64 requires a local Apple Distribution identity in the signing keychain"
+
+    profile_plist="$(profile_plist_path "$APP_STORE_PROFILE_RESOLVED_PATH")"
+    profile_name="$(plist_value "$profile_plist" Name)"
+    profile_uuid="$(plist_value "$profile_plist" UUID)"
+    app_identifier="$(plist_value "$profile_plist" Entitlements:application-identifier)"
+    get_task_allow="$(plist_value "$profile_plist" Entitlements:get-task-allow)"
+    provisions_all_devices="$(plist_value "$profile_plist" ProvisionsAllDevices 2>/dev/null || true)"
+    expected_app_identifier="${RESOLVED_DEVELOPMENT_TEAM}.${EXPECTED_BUNDLE_ID}"
+
+    [[ "$app_identifier" == "$expected_app_identifier" ]] \
+        || die "provisioning profile app ID mismatch: expected ${expected_app_identifier}, got ${app_identifier}"
+    [[ "$get_task_allow" == "false" ]] \
+        || die "provisioning profile '${profile_name}' is not a distribution profile"
+    ! profile_has_key "$profile_plist" ProvisionedDevices \
+        || die "provisioning profile '${profile_name}' is not an App Store profile; it contains ProvisionedDevices"
+    [[ "$provisions_all_devices" != "true" ]] \
+        || die "provisioning profile '${profile_name}' is not an App Store profile; it provisions all devices"
+    DISTRIBUTION_IDENTITY_SHA1="$(matching_profile_distribution_identity "$profile_plist")" \
+        || die "provisioning profile '${profile_name}' does not include any local Apple Distribution identity"
+
+    local mobile_profiles_dir xcode_profiles_dir
+    mobile_profiles_dir="${HOME}/Library/MobileDevice/Provisioning Profiles"
+    xcode_profiles_dir="${HOME}/Library/Developer/Xcode/UserData/Provisioning Profiles"
+    run mkdir -p "$mobile_profiles_dir" "$xcode_profiles_dir"
+    run cp "$APP_STORE_PROFILE_RESOLVED_PATH" "${mobile_profiles_dir}/${profile_uuid}.mobileprovision"
+    run cp "$APP_STORE_PROFILE_RESOLVED_PATH" "${xcode_profiles_dir}/${profile_uuid}.mobileprovision"
+
+    log signing "installed App Store profile '${profile_name}' (${profile_uuid})"
+}
+
 validate_archive() {
     if [[ "$DRY_RUN" -eq 1 ]]; then
         log validate "would inspect archived app Info.plist"
@@ -341,6 +479,19 @@ export_upload() {
     else
         cp "$EXPORT_OPTIONS" "$export_options"
         /usr/libexec/PlistBuddy -c "Set :teamID ${RESOLVED_DEVELOPMENT_TEAM}" "$export_options"
+        if has_app_store_profile_source; then
+            local profile_plist profile_uuid identity_sha1
+            resolve_app_store_profile
+            profile_plist="$(profile_plist_path "$APP_STORE_PROFILE_RESOLVED_PATH")"
+            profile_uuid="$(plist_value "$profile_plist" UUID)"
+            identity_sha1="${DISTRIBUTION_IDENTITY_SHA1:-$(matching_profile_distribution_identity "$profile_plist")}"
+            /usr/libexec/PlistBuddy -c "Set :signingStyle manual" "$export_options"
+            /usr/libexec/PlistBuddy -c "Add :signingCertificate string ${identity_sha1}" "$export_options" 2>/dev/null \
+                || /usr/libexec/PlistBuddy -c "Set :signingCertificate ${identity_sha1}" "$export_options"
+            /usr/libexec/PlistBuddy -c "Delete :provisioningProfiles" "$export_options" 2>/dev/null || true
+            /usr/libexec/PlistBuddy -c "Add :provisioningProfiles dict" "$export_options"
+            /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:${EXPECTED_BUNDLE_ID} string ${profile_uuid}" "$export_options"
+        fi
     fi
     local asc_key_path="${ASC_KEY_PATH:-<ASC_KEY_PATH>}"
     local asc_key_id="${ASC_KEY_ID:-<ASC_KEY_ID>}"
@@ -351,11 +502,13 @@ export_upload() {
         -archivePath "$ARCHIVE_PATH"
         -exportPath "$EXPORT_DIR"
         -exportOptionsPlist "$export_options"
-        -allowProvisioningUpdates
         -authenticationKeyPath "$asc_key_path"
         -authenticationKeyID "$asc_key_id"
         -authenticationKeyIssuerID "$asc_issuer_id"
     )
+    if ! has_app_store_profile_source; then
+        args+=(-allowProvisioningUpdates)
+    fi
 
     if [[ "$DRY_RUN" -eq 1 ]]; then
         run "${args[@]}"
@@ -373,7 +526,7 @@ export_upload() {
 [export] TestFlight export failed.
 [export] If the log mentions "Cloud signing permission error" or no "iOS Distribution" certificate, fix one of these:
 [export] - grant the App Store Connect account/API key cloud-managed distribution certificate access; or
-[export] - install an Apple Distribution certificate with its private key on the runner before this job runs.
+[export] - install an Apple Distribution certificate with its private key and set APP_STORE_PROFILE_PATH or APP_STORE_PROFILE_BASE64 to a matching App Store profile.
 EOF
         exit "$status"
     fi

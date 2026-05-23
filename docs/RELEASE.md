@@ -31,17 +31,26 @@ Before a tag-driven upload job can be reliable:
   receive it as masked/file GitLab CI variables and invoke `xcodebuild` with
   `-allowProvisioningUpdates`, `-authenticationKeyPath`,
   `-authenticationKeyID`, and `-authenticationKeyIssuerID`.
-- Distribution signing is available to the runner. The preferred path is
-  cloud-managed distribution signing with the App Store Connect account/key
-  allowed to use cloud-managed distribution certificates. The fallback is a
-  local Apple Distribution certificate, including its private key, installed in
-  the runner keychain.
+- Distribution signing is available to the runner. For this project the
+  reliable path is local signing: install an active Apple Distribution
+  certificate, including its private key, in the runner keychain and provide a
+  matching App Store provisioning profile through `APP_STORE_PROFILE_PATH` or
+  `APP_STORE_PROFILE_BASE64`. Cloud-managed distribution signing also works if
+  the App Store Connect account/key has permission to use cloud-managed
+  distribution certificates.
 - The `xcode` GitLab runner uses the same `KEYCHAIN_PATH` and
   `KEYCHAIN_PASSWORD` group variables as `dans-extra-snap` to unlock the
   unattended signing keychain. A `Developer ID Application` identity in that
   keychain is macOS-only; TestFlight export needs an `Apple Distribution` or
   `iOS Distribution` identity, unless cloud-managed distribution signing is
   permitted.
+- `APP_STORE_PROFILE_BASE64` should be a masked GitLab variable containing the
+  downloaded App Store Connect provisioning profile for
+  `com.dtolb.BlueSkyTemplates`, encoded as one line with
+  `base64 -i Profile.mobileprovision | tr -d '\n'`. `APP_STORE_PROFILE_PATH`
+  is also supported when GitLab provides the profile as a file variable. The
+  profile must include the same Apple Distribution certificate that exists as a
+  private-key identity in `KEYCHAIN_PATH`.
 
 ## Versioning
 
@@ -67,6 +76,11 @@ previous attempt already reached App Store Connect.
 - `release-testflight` unlocks the shared CI signing keychain before the
   archive/upload script runs. This mirrors the macOS release job, but uses iOS
   distribution signing instead of Developer ID/notary signing.
+- If `APP_STORE_PROFILE_PATH` or `APP_STORE_PROFILE_BASE64` is set,
+  `release-testflight` validates and installs the provisioning profile,
+  verifies that it matches the bundle ID and local Apple Distribution identity,
+  then exports with manual signing. This avoids App Store Connect cloud-signing
+  permissions during export.
 - The release script does not pass a global `CODE_SIGN_IDENTITY` override.
   Forcing `Apple Distribution` globally at archive time conflicts with
   automatically signed package resource bundles.
@@ -80,16 +94,25 @@ previous attempt already reached App Store Connect.
 ## Signing failures
 
 If the tag job archives successfully and then fails during export with
-`Cloud signing permission error` or `No signing certificate "iOS Distribution"
-found`, the GitLab variables are reaching Xcode but the runner cannot complete
-distribution signing.
+`Cloud signing permission error`, `No profiles for 'com.dtolb.BlueSkyTemplates'
+were found`, or a message that a profile does not include the signing
+certificate, the GitLab variables are reaching Xcode but the runner cannot
+complete distribution signing.
 
 Fix one of these two paths:
 
 - Grant the App Store Connect account/API key access to cloud-managed
   distribution certificates.
 - Install an active Apple Distribution certificate with its private key on the
-  runner before the release job runs.
+  runner and set `APP_STORE_PROFILE_BASE64` or `APP_STORE_PROFILE_PATH` to an
+  App Store provisioning profile generated for that certificate.
+
+To refresh the profile, open Apple Developer account > Certificates,
+Identifiers & Profiles > Profiles, create an App Store Connect profile for the
+`com.dtolb.BlueSkyTemplates` App ID, select the Apple Distribution certificate
+that is installed in the CI keychain, generate, download, and store the
+downloaded `.mobileprovision` as `APP_STORE_PROFILE_BASE64` or
+`APP_STORE_PROFILE_PATH`.
 
 ## Archive shape
 
