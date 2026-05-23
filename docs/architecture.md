@@ -1045,8 +1045,8 @@ The code path now uses private CloudKit-backed SwiftData for templates:
 `iCloud.com.dtolb.BlueSkyTemplates`, and the app entitlement declares the
 same container. XcodeGen pins automatic Apple Development signing for team
 `49LQ789275` because iCloud/CloudKit entitlements cannot be signed with
-Xcode's "Sign to Run Locally" identity. Real device/TestFlight/App Store
-sync still requires the Apple Developer CloudKit container, provisioning
+Xcode's "Sign to Run Locally" identity. Real device and internal TestFlight
+sync still require the Apple Developer CloudKit container, provisioning
 profile, and schema deployment to be configured for the bundle ID.
 
 ### iOS minimum at later revisits

@@ -23,3 +23,14 @@ BlueSkyTemplates/
 
 # CI artifacts
 test-results/
+dist/
+*.ipa
+*.xcarchive
+
+# Release credentials / local App Store Connect material
+*.p8
+*.p12
+*.cer
+*.mobileprovision
+.env
+.env.local

@@ -108,6 +108,11 @@ pass/fail on the MR widget.
 
 Pipelines: <https://gitlab.tolbbox.com/tolbnet/BlueSkyTemplates/-/pipelines>
 
+## TestFlight
+
+Release automation is intentionally TestFlight-only. The current release
+prep notes are in [`docs/RELEASE.md`](docs/RELEASE.md).
+
 ## Dependencies
 
 Pinned in `Package.swift`.
