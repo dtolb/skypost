@@ -91,10 +91,9 @@ targets:
           CODE_SIGN_IDENTITY: Apple Development
           APS_ENVIRONMENT: development
         Release:
-          # TestFlight/App Store exports must use distribution signing. If no
-          # local Apple Distribution identity is installed, Xcode can cloud-sign
-          # during archive/export when the App Store Connect account has access.
-          CODE_SIGN_IDENTITY: Apple Distribution
+          # Keep automatic signing in control for archives. The export step
+          # re-signs for TestFlight with Apple Distribution when the runner has
+          # the identity or App Store Connect can cloud-sign.
           APS_ENVIRONMENT: production
     dependencies:
       - package: BlueSkyTemplates

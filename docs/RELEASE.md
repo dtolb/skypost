@@ -70,9 +70,9 @@ previous attempt already reached App Store Connect.
 - The release script does not pass a global `CODE_SIGN_IDENTITY` override.
   Forcing `Apple Distribution` globally at archive time conflicts with
   automatically signed package resource bundles.
-- Debug builds explicitly use `Apple Development`; Release builds explicitly
-  use `Apple Distribution` for the app target so archive/export entitlements
-  line up with TestFlight expectations.
+- Debug builds explicitly use `Apple Development`. Release builds leave the
+  identity to Xcode automatic signing and set production entitlements; export
+  then re-signs for TestFlight with Apple Distribution.
 - Release intermediates are written to a per-job temp directory by default.
   Set `BUILD_DIR` only when intentionally keeping an archive for local
   inspection.
