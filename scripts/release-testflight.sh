@@ -249,7 +249,6 @@ archive() {
         local asc_key_id="${ASC_KEY_ID:-<ASC_KEY_ID>}"
         local asc_issuer_id="${ASC_ISSUER_ID:-<ASC_ISSUER_ID>}"
         args+=(
-            "CODE_SIGN_IDENTITY=Apple Distribution"
             -allowProvisioningUpdates
             -authenticationKeyPath "$asc_key_path"
             -authenticationKeyID "$asc_key_id"

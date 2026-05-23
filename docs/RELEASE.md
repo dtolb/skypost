@@ -53,6 +53,10 @@ previous attempt already reached App Store Connect.
   credentials.
 - Tags matching `vX.Y.Z` run `release-testflight`, which signs, archives, and
   uploads to internal TestFlight with App Store Connect API credentials.
+- The release archive leaves `CODE_SIGN_IDENTITY` to Xcode automatic signing.
+  Forcing `Apple Distribution` at archive time conflicts with automatically
+  signed package resource bundles; distribution signing happens during
+  `-exportArchive`.
 - Release intermediates are written to a per-job temp directory by default.
   Set `BUILD_DIR` only when intentionally keeping an archive for local
   inspection.
