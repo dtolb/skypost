@@ -41,6 +41,14 @@ public final class CameraSession: NSObject {
     public private(set) var zoomOptions: [CameraZoomOption] = []
     public private(set) var selectedZoomOption: CameraZoomOption?
 
+    // Interruption banner state. Surfaced alongside `state == .live` so the
+    // viewfinder stays mounted during phone calls / control center / route
+    // changes — flipping state itself would unmount the preview and route the
+    // user to the close-only failureCard, which is worse UX than a paused
+    // viewfinder with a banner.
+    public private(set) var interruptionMessage: String?
+    public var isInterrupted: Bool { interruptionMessage != nil }
+
     // Immutable AVFoundation refs are nonisolated so background-queue closures
     // can touch them without crossing actor boundaries. They're never reassigned,
     // and AVCaptureSession/AVCapturePhotoOutput are thread-safe for the calls we
@@ -162,11 +170,19 @@ public final class CameraSession: NSObject {
         if result.isConfigured {
             zoomOptions = result.zoomOptions
             selectedZoomOption = result.selectedZoomOption
-            // session.startRunning() is a blocking call; do it on the queue.
-            sessionQueue.async { [session] in
-                if !session.isRunning { session.startRunning() }
+            // session.startRunning() blocks for 50–500ms on cold start. Await
+            // its completion before flipping state so the shutter button can't
+            // arm against a non-running session (which would dispatch a capture
+            // that's silently dropped, stranding state at .capturing forever).
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                sessionQueue.async { [session] in
+                    if !session.isRunning { session.startRunning() }
+                    continuation.resume()
+                }
             }
-            state = .live
+            state = session.isRunning
+                ? .live
+                : .failed(message: "Couldn't start camera.")
         } else {
             state = .failed(message: "Couldn't start camera.")
         }
@@ -228,7 +244,15 @@ public final class CameraSession: NSObject {
     /// videoRotationAngleForHorizonLevelCapture in `capture()`, so face-up /
     /// face-down EXIF orientation remains correct for the saved JPEG.
     public func attachRotationCoordinator(previewLayer: AVCaptureVideoPreviewLayer) {
-        guard let device = (session.inputs.first as? AVCaptureDeviceInput)?.device else { return }
+        guard let device = (session.inputs.first as? AVCaptureDeviceInput)?.device else {
+            // Reached only if SwiftUI mounts the preview before configureAndStart's
+            // continuation resumes. The race is closed by awaiting startRunning
+            // before flipping state to .live, but log if it ever regresses — a
+            // missing coordinator means capture() falls back to 0° rotation and
+            // uploads a sideways JPEG.
+            Log.media.warning("attachRotationCoordinator called before session input available")
+            return
+        }
         let coordinator = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: previewLayer)
         rotationCoordinator = coordinator
 
@@ -322,15 +346,17 @@ public final class CameraSession: NSObject {
             forName: AVCaptureSession.wasInterruptedNotification,
             object: session,
             queue: .main
-        ) { notification in
-            let reason: String
+        ) { [weak self] notification in
+            let reason: AVCaptureSession.InterruptionReason?
             if let raw = notification.userInfo?[AVCaptureSessionInterruptionReasonKey] as? Int {
-                reason = "\(raw)"
+                reason = AVCaptureSession.InterruptionReason(rawValue: raw)
             } else {
-                reason = "unknown"
+                reason = nil
             }
-            Log.media.info("camera session interrupted: \(reason, privacy: .public)")
-            // We don't flip state — the UI shows a banner via its own observer.
+            Log.media.info("camera session interrupted: \(String(describing: reason), privacy: .public)")
+            Task { @MainActor in
+                self?.interruptionMessage = Self.message(for: reason)
+            }
         }
         interruptionObservers.append(interrupted)
 
@@ -338,10 +364,65 @@ public final class CameraSession: NSObject {
             forName: AVCaptureSession.interruptionEndedNotification,
             object: session,
             queue: .main
-        ) { _ in
+        ) { [weak self] _ in
             Log.media.info("camera session interruption ended")
+            Task { @MainActor in
+                self?.interruptionMessage = nil
+            }
         }
         interruptionObservers.append(ended)
+
+        // Runtime errors stop the session permanently unless we explicitly
+        // restart. .mediaServicesWereReset is the recoverable case (foreground
+        // app gets a fresh mediaserverd after a crash); everything else means
+        // the session is dead and the user has to bail out.
+        let runtimeError = NotificationCenter.default.addObserver(
+            forName: AVCaptureSession.runtimeErrorNotification,
+            object: session,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self else { return }
+            let error = notification.userInfo?[AVCaptureSessionErrorKey] as? NSError
+            Log.media.error("camera runtime error: \(String(describing: error), privacy: .public)")
+
+            let isMediaServicesReset = error?.domain == AVFoundationErrorDomain
+                && error?.code == AVError.Code.mediaServicesWereReset.rawValue
+            if isMediaServicesReset {
+                self.sessionQueue.async { [session = self.session] in
+                    if !session.isRunning { session.startRunning() }
+                    let recovered = session.isRunning
+                    Task { @MainActor [weak self] in
+                        if !recovered {
+                            self?.state = .failed(message: "Camera stopped unexpectedly.")
+                        }
+                    }
+                }
+            } else {
+                Task { @MainActor [weak self] in
+                    self?.state = .failed(message: "Camera stopped unexpectedly.")
+                }
+            }
+        }
+        interruptionObservers.append(runtimeError)
+    }
+
+    private static func message(for reason: AVCaptureSession.InterruptionReason?) -> String {
+        switch reason {
+        case .videoDeviceInUseByAnotherClient:
+            return "Camera is being used by another app."
+        case .videoDeviceNotAvailableWithMultipleForegroundApps:
+            return "Camera is unavailable in Split View."
+        case .videoDeviceNotAvailableInBackground:
+            return "Camera paused while in background."
+        case .videoDeviceNotAvailableDueToSystemPressure:
+            return "Camera paused — device is too hot."
+        case .audioDeviceInUseByAnotherClient:
+            return "Camera paused."
+        case .sensitiveContentMitigationActivated, .none:
+            return "Camera paused."
+        @unknown default:
+            return "Camera paused."
+        }
     }
 }
 
